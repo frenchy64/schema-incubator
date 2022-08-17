@@ -1,16 +1,50 @@
 (ns com.ambrosebs.schema-incubator.poly.check
   (:require [clojure.test.check :refer [quick-check]]
-            [schema-generators.generators :as sgen]
-            [com.gfredericks.test.chuck.properties :as prop']
             [clojure.test.check.generators :as gen]
             [com.ambrosebs.schema-incubator.poly :as poly]
+            [com.gfredericks.test.chuck.properties :as prop']
+            [schema-generators.generators :as sgen]
             [schema.core :as s]))
+
+(declare generator)
+
+(defn- fn-schema-generator
+  "Generator for s/=> schemas."
+  [=>-schema params]
+  (let [args-schema (poly/args-schema =>-schema)
+        return-gen (generator (poly/return-schema =>-schema) params)]
+    (gen/sized
+      (fn [size]
+        (gen/return
+          (fn [& args]
+            (s/validate args-schema (vec args))
+            (gen/generate return-gen size)))))))
+
+(s/defn generator
+  "Just like schema-generators.generators/generator, but also
+  generates FnSchema's."
+  ([schema] (generator schema {}))
+  ([schema leaf-generators] (generator schema leaf-generators {}))
+  ([schema :- sgen/Schema
+    leaf-generators :- sgen/LeafGenerators
+    wrappers :- sgen/GeneratorWrappers]
+   (let [leaf-generators (sgen/default-leaf-generators leaf-generators)
+         gen (fn [s params]
+               (or (when (instance? schema.core.FnSchema s)
+                     (fn-schema-generator s params))
+                   ((or (wrappers s) identity)
+                    (or (leaf-generators s)
+                        (sgen/composite-generator (s/spec s) params)))))]
+     (gen/fmap
+       (s/validator schema)
+       (gen schema {:subschema-generator gen :cache #?(:clj (java.util.IdentityHashMap.)
+                                                       :cljs (atom {}))})))))
 
 (defn check
   "Generatively test a function `f` against a FnSchema or PolySchema.
   
   Takes the same options as quick-check, additionally:
-  - :run-tests   number of iterations.
+  - :num-tests   number of iterations.
                  default: 100
   - :schema      the schema to check against.
                  default: (s/fn-schema f)
@@ -20,11 +54,12 @@
        (check foo)"
   ([f] (check f {}))
   ([f opt]
-   (let [qc (fn [prop]
+   (let [generator (fn [s] (apply generator s (:generator-args opt)))
+         qc (fn [prop]
               (apply quick-check
                      (or (:num-tests opt) 100)
                      prop
-                     (apply concat (dissoc opt :schema :num-tests))))
+                     (apply concat (dissoc opt :schema :num-tests :leaf-generators :wrappers))))
          s (or (:schema opt)
                (s/fn-schema f))]
      (cond
@@ -32,14 +67,12 @@
        (qc (prop'/for-all
              [insts (apply gen/tuple
                            (map (fn [a]
-                                  (if (-> a meta :nat)
-                                    ;; TODO gen nats too
-                                    (gen/return :any-nat)
-                                    ;; TODO make a spec subtype hierarchy
-                                    (sgen/generator s/Any)))
-                                (:decl s)))
+                                  (assert (= :schema (:kind (meta a)))
+                                          [a (meta a)])
+                                  (generator s/Any))
+                                (:parsed-decl s)))
               :let [s (apply poly/instantiate s insts)]
-              args (sgen/generator (poly/args-schema s))]
+              args (generator (poly/args-schema s))]
              (do (s/validate
                    (poly/return-schema s)
                    (apply f args))
@@ -47,7 +80,7 @@
 
        (instance? schema.core.FnSchema s)
        (qc (prop'/for-all
-             [args (sgen/generator (poly/args-schema s))]
+             [args (generator (poly/args-schema s))]
              (do (s/validate
                    (poly/return-schema s)
                    (apply f args))
@@ -66,19 +99,3 @@
     {:num-tests 2})
   ; :message "Output of a does not match schema: \n\n\t   (not (integer? nil))  \n\n"
   )
-
-;; goes last
-
-(defn generator
-  "Generator for s/=> schemas."
-  [=>-schema]
-  (let [args-schema (poly/args-schema =>-schema)
-        return-gen (sgen/generator (poly/return-schema =>-schema))]
-    (gen/sized
-      (fn [size]
-        (gen/return
-          (fn [& args]
-            (s/validate
-              args-schema
-              (vec args))
-            (gen/generate return-gen size)))))))
