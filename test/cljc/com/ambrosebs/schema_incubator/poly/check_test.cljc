@@ -41,7 +41,7 @@
   (is (integer? ((gen/generate
                    (sut/generator (s/=> s/Int s/Int)))
                  1)))
-  (is (thrown? Exception
+  (is (thrown? #?(:clj Exception :cljs js/Error)
                ((gen/generate
                   (sut/generator (s/=> s/Int s/Int)))
                 :foo))))

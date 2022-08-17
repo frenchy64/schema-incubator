@@ -1,12 +1,14 @@
 (ns com.ambrosebs.schema-incubator.poly.check
   (:require [clojure.test.check :refer [quick-check]]
             [clojure.test.check.generators :as gen]
-            [com.ambrosebs.schema-incubator.poly :as poly]
+            [com.ambrosebs.schema-incubator.poly :as poly #?@(:cljs [:refer [PolySchema]])]
             [com.gfredericks.test.chuck.properties :as prop']
             [schema-generators.generators :as sgen]
-            [schema.core :as s]
+            [schema.core :as s #?@(:cljs [:refer [FnSchema]])]
             #?(:clj [schema.macros :as macros])
             [schema.utils :as utils])
+  #?(:clj (:import [schema.core FnSchema]
+                   [com.ambrosebs.schema_incubator.poly PolySchema]))
   #?(:cljs (:require-macros [schema.macros :as macros])))
 
 (declare generator)
@@ -33,7 +35,7 @@
     wrappers :- sgen/GeneratorWrappers]
    (let [leaf-generators (sgen/default-leaf-generators leaf-generators)
          gen (fn [s params]
-               (or (when (instance? schema.core.FnSchema s)
+               (or (when (instance? FnSchema s)
                      (fn-schema-generator s params))
                    ((or (wrappers s) identity)
                     (or (leaf-generators s)
@@ -69,7 +71,7 @@
          s (or (:schema opt)
                (s/fn-schema f))]
      (cond
-       (instance? com.ambrosebs.schema_incubator.poly.PolySchema s)
+       (instance? PolySchema s)
        (qc (prop'/for-all
              [insts (apply gen/tuple
                            (map (fn [a]
@@ -84,7 +86,7 @@
                    (apply f args))
                  true)))
 
-       (instance? schema.core.FnSchema s)
+       (instance? FnSchema s)
        (let [ret-s (poly/return-schema s)
              ret-checker (s/checker ret-s)]
          (qc (prop'/for-all

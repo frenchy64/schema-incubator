@@ -113,7 +113,7 @@
    Currently function schemas are purely descriptive; there is no validation except for
    functions defined directly by s/fn or s/defn"
   [output-schema & arity-schema-specs]
-  `(s/make-fn-schema ~output-schema ~(mapv macros/parse-arity-spec arity-schema-specs))))
+  `(s/make-fn-schema ~output-schema ~(mapv #(macros/parse-arity-spec &env %) arity-schema-specs))))
 
 #?(:clj
 (defmacro =>

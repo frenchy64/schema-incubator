@@ -1970,7 +1970,13 @@
          s/Bool))
   (is (= (poly/return-schema (s/=> s/Bool & [s/Int]))
          s/Bool))
-  (is (thrown? Error (poly/return-schema s/Int))))
+  (is (= (poly/return-schema (poly/=> s/Int))
+         s/Int))
+  (is (= (poly/return-schema (poly/=> s/Bool s/Int))
+         s/Bool))
+  (is (= (poly/return-schema (poly/=> s/Bool & [s/Int]))
+         s/Bool))
+  (is (thrown? #?(:clj Error :cljs js/Error) (poly/return-schema s/Int))))
 
 
 (deftest args-schema-test
