@@ -5,8 +5,9 @@
             [com.gfredericks.test.chuck.properties :as prop']
             [schema-generators.generators :as sgen]
             [schema.core :as s]
-            [schema.macros :as macros]
-            [schema.utils :as utils]))
+            #?(:clj [schema.macros :as macros])
+            [schema.utils :as utils])
+  #?(:cljs (:require-macros [schema.macros :as macros])))
 
 (declare generator)
 

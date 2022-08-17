@@ -1,4 +1,4 @@
-(def schema-version "1.4.0")
+(def schema-version "1.4.0") ;; also in bb.edn
 (defproject com.ambrosebs/schema-incubator "1.0.0-SNAPSHOT"
   :description "Extensions to Plumatic schema"
   :url "https://github.com/frenchy64/schema-incubator"

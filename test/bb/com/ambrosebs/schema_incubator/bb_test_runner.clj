@@ -2,7 +2,9 @@
   (:require [clojure.test :as t]
             [babashka.classpath :as cp]))
 
-(def test-nsyms [])
+(def test-nsyms '[com.ambrosebs.schema-incubator.poly-test
+                  com.ambrosebs.schema-incubator.poly.check-test
+                  com.ambrosebs.schema-incubator.poly.macros-test])
 
 (apply require test-nsyms)
 
