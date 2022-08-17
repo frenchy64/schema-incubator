@@ -1961,3 +1961,23 @@
                                        ([f :- (poly/=> T X Y Z) xs :- [X] ys :- [Y] zs :- [Z]] (map f xs ys zs))
                                        ([f :- (poly/=> T X Y Z S :.. S) xs :- [X] ys :- [Y] zs :- [Z] & ss :- [S] :.. S] (apply map f xs ys zs ss)))]
                              poly-map-dot-arities)}))
+
+
+(deftest return-schema-test
+  (is (= (poly/return-schema (s/=> s/Int))
+         s/Int))
+  (is (= (poly/return-schema (s/=> s/Bool s/Int))
+         s/Bool))
+  (is (= (poly/return-schema (s/=> s/Bool & [s/Int]))
+         s/Bool))
+  (is (thrown? Error (poly/return-schema s/Int))))
+
+
+(deftest args-schema-test
+  (let [s (poly/args-schema (s/=> s/Any s/Int s/Bool))]
+    (is (= [1 true] (s/validate s [1 true])))
+    (is (thrown? Exception (s/validate s [true 1]))))
+  (let [s (poly/args-schema (poly/all [a] (s/=> s/Any a s/Bool)))]
+    (is (= [1 true] (s/validate s [1 true])))
+    (is (= [:a false] (s/validate s [:a false])))
+    (is (thrown? Exception (s/validate s [1 :a])))))
