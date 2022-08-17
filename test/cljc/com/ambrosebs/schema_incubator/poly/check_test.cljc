@@ -27,7 +27,7 @@
              (select-keys res #{:pass? :seed :num-tests :cause})))
       (is (= {:smallest '[{args [0]}]}
              (select-keys (:shrunk res) #{:smallest})))
-      (is (re-find #"Output of foo does not match schema.*"
+      (is (re-find #"Output of .*foo.* does not match schema.*"
                    (-> res
                        (get-in [:shrunk :result])
                        .getMessage)))

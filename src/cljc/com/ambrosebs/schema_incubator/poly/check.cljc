@@ -4,7 +4,9 @@
             [com.ambrosebs.schema-incubator.poly :as poly]
             [com.gfredericks.test.chuck.properties :as prop']
             [schema-generators.generators :as sgen]
-            [schema.core :as s]))
+            [schema.core :as s]
+            [schema.macros :as macros]
+            [schema.utils :as utils]))
 
 (declare generator)
 
@@ -42,6 +44,9 @@
 
 (defn check
   "Generatively test a function `f` against a FnSchema or PolySchema.
+
+  If `f` is a qualified symbol, resolves it before checking with improved
+  error messages.
   
   Takes the same options as quick-check, additionally:
   - :num-tests   number of iterations.
@@ -79,12 +84,16 @@
                  true)))
 
        (instance? schema.core.FnSchema s)
-       (qc (prop'/for-all
-             [args (generator (poly/args-schema s))]
-             (do (s/validate
-                   (poly/return-schema s)
-                   (apply f args))
-                 true)))
+       (let [ret-s (poly/return-schema s)
+             ret-checker (s/checker ret-s)]
+         (qc (prop'/for-all
+               [args (generator (poly/args-schema s))]
+               (let [ret (apply f args)]
+                 (if-some [reason (ret-checker ret)]
+                   (let [{:keys [error]} (macros/validation-error ret-s ret (str (utils/value-name ret)) reason)]
+                     (macros/error! (utils/format* "Output of %s does not match schema: %s" f (pr-str error))
+                                    {:schema ret-s :value ret :error error}) )
+                   true)))))
        :else (throw (ex-info (str "Invalid schema to exercise: " (pr-str s))
                              {}))))))
 
