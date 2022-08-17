@@ -1,0 +1,13 @@
+target/**
+.lein**
+.repl/
+out/
+*~
+pom.xml
+*.asc
+/doc/
+.nrepl-port
+.cpcache/
+.eastwood
+bb
+.hgignore
