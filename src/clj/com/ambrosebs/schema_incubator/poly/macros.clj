@@ -4,99 +4,14 @@
   (:refer-clojure :exclude [simple-symbol?])
   (:require
    [clojure.string :as str]
+   [schema.macros :as macros :refer [cljs-env? if-cljs bb? if-bb error! safe-get assert! 
+                                     *compile-fn-validation* compile-fn-validation?]]
    [schema.utils :as utils]))
 
 ;; can remove this once we drop Clojure 1.8 support
 (defn- simple-symbol? [x]
   (and (symbol? x)
        (not (namespace x))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; Helpers used in schema.core.
-
-(defn cljs-env?
-  "Take the &env from a macro, and tell whether we are expanding into cljs."
-  [env]
-  (boolean (:ns env)))
-
-(defmacro if-cljs
-  "Return then if we are generating cljs code and else for Clojure code.
-   https://groups.google.com/d/msg/clojurescript/iBY5HaQda4A/w1lAQi9_AwsJ"
-  [then else]
-  (if (cljs-env? &env) then else))
-
-(def bb? (boolean (System/getProperty "babashka.version")))
-
-(defmacro if-bb
-  [then else]
-  (if bb? then else))
-
-(defmacro try-catchall
-  "A cross-platform variant of try-catch that catches all* exceptions.
-   Does not (yet) support finally, and does not need or want an exception class.
-
-   *On the JVM certain fatal exceptions are not caught."
-  [& body]
-  (let [try-body (butlast body)
-        [catch sym & catch-body :as catch-form] (last body)]
-    (assert (= catch 'catch))
-    (assert (symbol? sym))
-    `(if-cljs
-      (try ~@try-body (~'catch js/Object ~sym ~@catch-body))
-      (try
-        ~@try-body
-        ;; this whitelist is shamelessly copied from scala
-        ;; https://github.com/scala/scala/blob/2.13.x/src/library/scala/util/control/NonFatal.scala#L42
-        (~'catch VirtualMachineError  e# (throw e#))
-        (~'catch ThreadDeath          e# (throw e#))
-        (~'catch InterruptedException e# (throw e#))
-        (~'catch LinkageError         e# (throw e#))
-        (~'catch Throwable ~sym ~@catch-body)))))
-
-(defmacro error!
-  "Generate a cross-platform exception appropriate to the macroexpansion context"
-  ([s]
-     `(if-cljs
-       (throw (js/Error. ~s))
-       (throw (RuntimeException. ~(with-meta s `{:tag java.lang.String})))))
-  ([s m]
-     (let [m (merge {:type :schema.core/error} m)]
-       `(if-cljs
-         (throw (ex-info ~s ~m))
-         (throw (clojure.lang.ExceptionInfo. ~(with-meta s `{:tag java.lang.String}) ~m))))))
-
-(defmacro safe-get
-  "Like get but throw an exception if not found. A macro for historical reasons (to
-   work around cljx function placement restrictions)."
-  [m k]
-  `(let [m# ~m k# ~k]
-     (if-let [pair# (find m# k#)]
-       (val pair#)
-       (error! (utils/format* "Key %s not found in %s" k# m#)))))
-
-(defmacro assert!
-  "Like assert, but throws a RuntimeException (in Clojure) and takes args to format."
-  [form & format-args]
-  `(when-not ~form
-     (error! (utils/format* ~@format-args))))
-
-(defmacro validation-error [schema value expectation & [fail-explanation]]
-  `(schema.utils/error
-    (utils/make-ValidationError ~schema ~value (delay ~expectation) ~fail-explanation)))
-
-(defmacro defrecord-schema
-  "Like defrecord for schema primitives, and also registers cross-platform print methods."
-  [n & args]
-  `(do (clojure.core/defrecord ~n ~@args)
-       (if-cljs (extend-protocol cljs.core/IPrintWithWriter
-                  ~n
-                  (~'-pr-writer [s# w# _#]
-                    (cljs.core/-write w# (schema.core/explain s#))))
-                ;; bb doesn't support multimethods extended via protocols yet
-                (if-bb (schema.core/register-schema-print-as-explain ~n)
-                       ;; relies on (register-schema-print-as-explain schema.core.Schema)
-                       nil))
-       ~n))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Helpers for processing and normalizing element/argument schemas in s/defrecord and s/(de)fn
@@ -256,22 +171,6 @@
                   ~@(map (fn [c] `(assert ~c)) post)
                   ~'%))
               body))))
-
-(def ^:dynamic *compile-fn-validation* (atom true))
-
-(defn compile-fn-validation?
-  "Returns true if validation should be included at compile time, otherwise false.
-   Validation is elided for any of the following cases:
-   *   function has :never-validate metadata
-   *   *compile-fn-validation* is false
-   *   *assert* is false AND function is not :always-validate"
-  [env fn-name]
-  (let [fn-meta (meta fn-name)]
-    (and
-     @*compile-fn-validation*
-     (not (:never-validate fn-meta))
-     (or (:always-validate fn-meta)
-         *assert*))))
 
 (defn process-fn-arity
   "Process a single (bind & body) form, producing an output tag, schema-form,
@@ -701,10 +600,3 @@
                      leading-opts
                      (when maybe-docstring {:doc maybe-docstring}))
           macro-args)))
-
-(defn set-compile-fn-validation!
-  "Globally turn on or off function validation from being compiled into s/fn and s/defn.
-   Enabled by default.
-   See (doc compile-fn-validation?) for all conditions which control fn validation compilation"
-  [on?]
-  (reset! *compile-fn-validation* on?))

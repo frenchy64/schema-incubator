@@ -6,6 +6,7 @@
    #?(:clj [clojure.pprint :as pprint])
    [clojure.string :as str]
    [schema.core :as s]
+   #?(:clj [schema.macros :refer [assert! compile-fn-validation? defrecord-schema if-cljs]])
    #?(:clj [com.ambrosebs.schema-incubator.poly.macros :as macros])
    [schema.utils :as utils]
    [schema.spec.core :as spec :include-macros true]
@@ -23,7 +24,7 @@
 
 (declare ^:private inst-most-general)
 
-(macros/defrecord-schema PolySchema [decl parsed-decl schema-form inst->schema]
+(defrecord-schema PolySchema [decl parsed-decl schema-form inst->schema]
   s/Schema
   (spec [this] (s/spec (inst-most-general this)))
   (explain [this] (list 'all decl schema-form)))
@@ -32,11 +33,11 @@
   "Instantiate a polymorphic schema with schemas."
   [{:keys [inst->schema parsed-decl] :as for-all-schema} & schemas]
   {:pre [(instance? PolySchema for-all-schema)]}
-  (macros/assert! (= (count schemas) (count parsed-decl))
-                  "Wrong number of arguments to instantiate schema %s: expected %s, actual %s"
-                  (s/explain for-all-schema)
-                  (count parsed-decl)
-                  (count schemas))
+  (assert! (= (count schemas) (count parsed-decl))
+           "Wrong number of arguments to instantiate schema %s: expected %s, actual %s"
+           (s/explain for-all-schema)
+           (count parsed-decl)
+           (count schemas))
   (apply inst->schema schemas))
 
 (defn- most-general-insts [=>-schema]
@@ -86,41 +87,6 @@
 ;; The function can only have a single output schema (across all arities), and each input
 ;; schema is a sequence schema describing the argument vector.
 
-;; Currently function schemas are purely descriptive, and do not carry any validation logic.
-
-(clojure.core/defn explain-input-schema [input-schema]
-  (let [[required more] (split-with #(instance? schema.core.One %) input-schema)]
-    (concat (map #(s/explain (.-schema ^schema.core.One %)) required)
-            (when (seq more)
-              ['& (mapv s/explain more)]))))
-
-(macros/defrecord-schema FnSchema [output-schema input-schemas] ;; input-schemas sorted by arity
-  s/Schema
-  (spec [this] (leaf/leaf-spec (spec/simple-precondition this ifn?)))
-  (explain [this]
-    (if (> (count input-schemas) 1)
-      (list* '=>* (s/explain output-schema) (map explain-input-schema input-schemas))
-      (list* '=> (s/explain output-schema) (explain-input-schema (first input-schemas))))))
-
-(clojure.core/defn- arity [input-schema]
-  (if (seq input-schema)
-    (if (instance? schema.core.One (last input-schema))
-      (count input-schema)
-      #?(:clj Long/MAX_VALUE
-         :cljs js/Number.MAX_VALUE))
-    0))
-
-(clojure.core/defn make-fn-schema
-  "A function outputting a value in output schema, whose argument vector must match one of
-   input-schemas, each of which should be a sequence schema.
-   Currently function schemas are purely descriptive; they validate against any function,
-   regardless of actual input and output types."
-  [output-schema input-schemas]
-  (macros/assert! (seq input-schemas) "Function must have at least one input schema")
-  (macros/assert! (every? vector? input-schemas) "Each arity must be a vector.")
-  (macros/assert! (apply distinct? (map arity input-schemas)) "Arities must be distinct")
-  (FnSchema. output-schema (sort-by arity input-schemas)))
-
 #?(:clj
 (defmacro =>*
   "Produce a function schema from an output schema and a list of arity input schema specs,
@@ -144,7 +110,7 @@
    Currently function schemas are purely descriptive; there is no validation except for
    functions defined directly by s/fn or s/defn"
   [output-schema & arity-schema-specs]
-  `(make-fn-schema ~output-schema ~(mapv macros/parse-arity-spec arity-schema-specs))))
+  `(s/make-fn-schema ~output-schema ~(mapv macros/parse-arity-spec arity-schema-specs))))
 
 #?(:clj
 (defmacro =>
@@ -152,41 +118,6 @@
    there is no vector around the argument schemas for this arity."
   [output-schema & arg-schemas]
   `(=>* ~output-schema ~(vec arg-schemas))))
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; Helpers for defining schemas (used in in-progress work, explanation coming soon)
-
-(clojure.core/defn schema-with-name
-  "Records name in schema's metadata."
-  [schema name]
-  (macros/assert! #?(:clj (instance? clojure.lang.IObj schema)
-                     :cljs (satisfies? IWithMeta schema))
-                  "Named schema (such as the right-most `s/defalias` arg) must support metadata: %s" (utils/type-of schema))
-  (vary-meta schema assoc :name name))
-
-(clojure.core/defn schema-name
-  "Returns the name of a schema attached via schema-with-name (or defschema)."
-  [schema]
-  (-> schema meta :name))
-
-(clojure.core/defn schema-ns
-  "Returns the namespace of a schema attached via defschema."
-  [schema]
-  (-> schema meta :ns))
-
-#?(:clj
-(defmacro defschema
-  "Convenience macro to make it clear to reader that body is meant to be used as a schema.
-   The name of the schema is recorded in the metadata."
-  ([name form]
-     `(defschema ~name "" ~form))
-  ([name docstring form]
-     `(def ~name ~docstring
-        (vary-meta
-         (schema-with-name ~form '~name)
-         assoc :ns '~(ns-name *ns*))))))
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Schematized defrecord and (de,let)fn macros
@@ -229,14 +160,6 @@
   {:arglists '([name field-schema extra-key-schema? extra-validator-fn? & opts+specs])}
   [name field-schema & more-args]
   (apply macros/emit-defrecord 'clojure.core/defrecord &env name field-schema more-args)))
-
-(clojure.core/defn fn-schema
-  "Produce the schema for a function defined with s/fn or s/defn."
-  [f]
-  ;; protocol methods in bb are multimethods
-  (macros/assert! (or (fn? f) #?@(:bb [(instance? clojure.lang.MultiFn f)])) "Non-function %s" (utils/type-of f))
-  (or (utils/class-schema (utils/fn-schema-bearer f))
-      (macros/safe-get (meta f) :schema)))
 
 #?(:clj
 (defmacro fn
@@ -408,7 +331,7 @@
      (s/defmethod ^:always-validate mymultifun :a-dispatch-value [x y] (* x y))"
   [multifn dispatch-val & fn-tail]
   (let [methodfn `(fn ~(with-meta (gensym (str (name multifn) "__")) (meta multifn)) ~@fn-tail)]
-    `(macros/if-cljs
+    `(if-cljs
        (cljs.core/-add-method
          ~(with-meta multifn {:tag 'cljs.core/MultiFn})
          ~dispatch-val
@@ -487,7 +410,7 @@
                      ;; :bb -- methods are multimethods which have defonce semantics are always class MultiFn. Object identity is used.
                      (utils/declare-class-schema! (macros/if-bb ~method-name (utils/fn-schema-bearer ~method-name)) fn-schema#)
                      ;; also add :schema metadata like s/defn
-                     (macros/if-cljs
+                     (if-cljs
                        nil
                        (alter-meta! (var ~method-name) assoc :schema fn-schema#))))
                 parsed-sigs)
