@@ -31,7 +31,7 @@
   (spec [this] (s/spec (inst-most-general this)))
   (explain [this] (list 'all decl schema-form)))
 
-(defn- instantiate
+(cc/defn instantiate
   "Instantiate a polymorphic schema with schemas."
   [{:keys [inst->schema parsed-decl] :as for-all-schema} & schemas]
   {:pre [(instance? PolySchema for-all-schema)]}
