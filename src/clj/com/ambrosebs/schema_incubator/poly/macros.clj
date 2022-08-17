@@ -4,8 +4,8 @@
   (:refer-clojure :exclude [simple-symbol?])
   (:require
    [clojure.string :as str]
-   [schema.macros :as macros :refer [cljs-env? if-cljs bb? if-bb error! safe-get assert! 
-                                     *compile-fn-validation* compile-fn-validation?]]
+   [schema.macros :refer [cljs-env? if-cljs bb? if-bb error! safe-get assert! 
+                          *compile-fn-validation* compile-fn-validation?]]
    [schema.utils :as utils]))
 
 ;; can remove this once we drop Clojure 1.8 support

@@ -6,13 +6,14 @@
    #?(:clj [clojure.pprint :as pprint])
    [clojure.string :as str]
    [schema.core :as s]
-   #?(:clj [schema.macros :refer [assert! compile-fn-validation? defrecord-schema if-cljs]])
+   #?(:clj [schema.macros :refer [assert! compile-fn-validation? defrecord-schema if-bb if-cljs]])
    #?(:clj [com.ambrosebs.schema-incubator.poly.macros :as macros])
    [schema.utils :as utils]
    [schema.spec.core :as spec :include-macros true]
    [schema.spec.leaf :as leaf])
-  #?(:cljs (:require-macros [schema.macros :as macros]
-                            schema.core)))
+  #?(:cljs (:require-macros [com.ambrosebs.schema-incubator.poly.macros :as macros]
+                            [schema.macros :refer [assert! compile-fn-validation? defrecord-schema if-bb if-cljs]]
+                            com.ambrosebs.schema-incubator.poly)))
 
 #?(:clj (set! *warn-on-reflection* true))
 
@@ -408,7 +409,7 @@
                      ;;         fn-schema-bearer uses the class in :clj, so we're ok.
                      ;; :cljs -- method identity never changes, and fn-schema-bearer uses function identity in :cljs.
                      ;; :bb -- methods are multimethods which have defonce semantics are always class MultiFn. Object identity is used.
-                     (utils/declare-class-schema! (macros/if-bb ~method-name (utils/fn-schema-bearer ~method-name)) fn-schema#)
+                     (utils/declare-class-schema! (if-bb ~method-name (utils/fn-schema-bearer ~method-name)) fn-schema#)
                      ;; also add :schema metadata like s/defn
                      (if-cljs
                        nil
