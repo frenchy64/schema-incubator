@@ -6,12 +6,13 @@
    [clojure.core :as cc]
    #?(:clj [clojure.pprint :as pprint])
    [clojure.string :as str]
-   [schema.core :as s]
+   [schema.core :as s #?@(:cljs [:refer [FnSchema One]])]
    #?(:clj [schema.macros :refer [assert! compile-fn-validation? defrecord-schema if-bb if-cljs]])
    #?(:clj [com.ambrosebs.schema-incubator.poly.macros :as macros])
    [schema.utils :as utils]
    [schema.spec.core :as spec :include-macros true]
    [schema.spec.leaf :as leaf])
+  #?(:clj (:import [schema.core FnSchema One]))
   #?(:cljs (:require-macros [com.ambrosebs.schema-incubator.poly.macros :as macros]
                             [schema.macros :refer [assert! compile-fn-validation? defrecord-schema if-bb if-cljs]]
                             com.ambrosebs.schema-incubator.poly)))
@@ -58,22 +59,20 @@
   {:pre [(instance? PolySchema =>-schema)]}
   (apply instantiate =>-schema (most-general-insts =>-schema)))
  
-(clojure.core/defn poly-schema? [v]
-  (instance? PolySchema v))
-
+#?(:clj
 (defmacro all
   "Create a polymorphic function schema.
-  
-   Binder declaration is a vector of polymorphic variables and its kinds.
 
-   Schema variables have a 'kind' that classify what it represents.
-   :- assigns a kind to a polymorphic variable. By default, polymorphic variables are kind :schema.
+  Binder declaration is a vector of polymorphic variables and its kinds.
 
-   1. [T :- :schema]   represents a Schema, eg., s/Any, s/Int, (s/=> s/Int s/Bool)
-   2. [T :- :..]       represents a vector of schemas, often to represent heterogenous rest arguments
-                       eg., [s/Int s/Bool]
+  Schema variables have a 'kind' that classify what it represents.
+  :- assigns a kind to a polymorphic variable. By default, polymorphic variables are kind :schema.
 
-   [T :..] is sugar for [T :- :..]"
+  1. [T :- :schema]   represents a Schema, eg., s/Any, s/Int, (s/=> s/Int s/Bool)
+  2. [T :- :..]       represents a vector of schemas, often to represent heterogenous rest arguments
+  eg., [s/Int s/Bool]
+
+  [T :..] is sugar for [T :- :..]"
   [decl schema]
   {:pre [(vector? decl)]}
   (let [parsed-decl (macros/parse-poly-binder decl)]
@@ -81,7 +80,7 @@
        '~decl
        '~parsed-decl
        '~schema
-       (clojure.core/fn ~(mapv first parsed-decl) ~schema))))
+       (clojure.core/fn ~(mapv first parsed-decl) ~schema)))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -126,11 +125,11 @@
 (defn- split-arities
   "Internal"
   [=>-schema]
-  {:pre [(instance? schema.core.FnSchema =>-schema)]}
+  {:pre [(instance? FnSchema =>-schema)]}
   (let [;; sorted by arity size
         input-schemas (vec (:input-schemas =>-schema))
         _ (assert (seq input-schemas) (pr-str =>-schema))
-        has-varargs? (not (instance? schema.core.One (-> input-schemas peek peek)))]
+        has-varargs? (not (instance? One (-> input-schemas peek peek)))]
     {:fixed-input-schemas (cond-> input-schemas
                             has-varargs? pop)
      :variable-input-schema (when has-varargs?
@@ -151,7 +150,7 @@
   {:post [(satisfies? s/Schema %)]}
   (let [=>-schema (cond-> =>-schema
                     (instance? PolySchema =>-schema) inst-most-general)
-        _ (assert (instance? schema.core.FnSchema =>-schema) (pr-str =>-schema))
+        _ (assert (instance? FnSchema =>-schema) (pr-str =>-schema))
         {:keys [fixed-input-schemas variable-input-schema]} 
         (split-arities =>-schema)]
     (apply s/conditional
@@ -168,10 +167,10 @@
   "Returns the schema of the return value of the => schema,
   or =>/all instantiated with s/Any."
   [=>-schema]
-  {:post [(satisfies? s/Schema %)]}
+  ;{:post [(satisfies? s/Schema %)]}
   (let [=>-schema (cond-> =>-schema
                     (instance? PolySchema =>-schema) inst-most-general)
-        _ (assert (instance? schema.core.FnSchema =>-schema))]
+        _ (assert (instance? FnSchema =>-schema))]
     (:output-schema =>-schema)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
