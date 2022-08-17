@@ -28,7 +28,7 @@
          s (or (:schema opt)
                (s/fn-schema f))]
      (cond
-       (instance? schema.core.FnSchema s)
+       (instance? com.ambrosebs.schema_incubator.poly.PolySchema s)
        (qc (prop'/for-all
              [insts (apply gen/tuple
                            (map (fn [a]

@@ -34,7 +34,9 @@
 (cc/defn instantiate
   "Instantiate a polymorphic schema with schemas."
   [{:keys [inst->schema parsed-decl] :as for-all-schema} & schemas]
-  {:pre [(instance? PolySchema for-all-schema)]}
+  (assert! (instance? PolySchema for-all-schema)
+           "instantiate expects a PolySchema: %s"
+           (utils/type-of for-all-schema))
   (assert! (= (count schemas) (count parsed-decl))
            "Wrong number of arguments to instantiate schema %s: expected %s, actual %s"
            (s/explain for-all-schema)
