@@ -1,6 +1,6 @@
 (def schema-version "1.3.5")
 (defproject com.ambrosebs/schema-incubator "1.0.0-SNAPSHOT"
-  :description "Clojure(Script) library for declarative data description and validation"
+  :description "Extensions to Plumatic schema"
   :url "https://github.com/frenchy64/schema-incubator"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
