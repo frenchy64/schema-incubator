@@ -1,10 +1,41 @@
 # schema-incubator
 
-A Clojure library designed to ... well, that part is up to you.
+Incubator for Plumatic Schema features.
 
-## Usage
+### Polymorphic schemas (com.ambrosebs.schema-incubator.poly)
 
-FIXME
+Macros such as `poly/defn` can define functions with polymorphic schemas. At runtime, they will be checked
+by expanding polymorphic variables to their most general values. For example, at runtime `identity-mono`
+and `identity-poly` are instrumented in the same way:
+
+```clojure
+(poly/defn identity-mono :- s/Any
+  [x :- s/Any]
+  x)
+
+(poly/defn :all [T]
+  identity-poly :- T
+  [x :- T]
+  x)
+```
+
+The actual value chosen as the "most general" depends on the polymorphic variables kind and should not be
+relied on. In the future, polymorphic variables may be instantiated with other values.
+
+Dotted variables have an internal "most general" value which represents a homogeneous sequence of
+generalized templates (ie., generalizing variables to the left of the `:..`).
+The following two functions are instrumented in the same way.
+
+```clojure
+(poly/defn :all [S T :..]
+  rest-args-poly :- S
+  [& xs :- {:a S :b T} :.. T]
+  x)
+
+(s/defn rest-args-mono :- s/Any
+  [& xs :- [{:a s/Any :b s/Any}]]
+  x)
+```
 
 ## License
 
