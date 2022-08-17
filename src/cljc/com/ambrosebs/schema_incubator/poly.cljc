@@ -3,6 +3,7 @@
   ;; don't exclude def because it's not a var.
   (:refer-clojure :exclude [Keyword Symbol Inst atom defprotocol defrecord defn letfn defmethod fn MapEntry ->MapEntry])
   (:require
+   [clojure.core :as cc]
    #?(:clj [clojure.pprint :as pprint])
    [clojure.string :as str]
    [schema.core :as s]
@@ -119,6 +120,57 @@
    there is no vector around the argument schemas for this arity."
   [output-schema & arg-schemas]
   `(=>* ~output-schema ~(vec arg-schemas))))
+
+(defn- split-arities
+  "Internal"
+  [=>-schema]
+  {:pre [(instance? schema.core.FnSchema =>-schema)]}
+  (let [;; sorted by arity size
+        input-schemas (vec (:input-schemas =>-schema))
+        _ (assert (seq input-schemas) (pr-str =>-schema))
+        has-varargs? (not (instance? schema.core.One (-> input-schemas peek peek)))]
+    {:fixed-input-schemas (cond-> input-schemas
+                            has-varargs? pop)
+     :variable-input-schema (when has-varargs?
+                              (peek input-schemas))}))
+
+
+;; TODO convert (s/one (s/named .. b) a) to (s/one .. a) to work around
+;; s/=> gensymming.
+;;  
+;;  ((gen/generate
+;;     (generator (s/=> s/Int (s/named s/Int 'something))))
+;;   :foo)
+;;  ;=> Value does not match schema: [(named (named (not (integer? :foo)) something) arg0)]
+(cc/defn args-schema
+  "Returns the schema of the arguments to the => schema, or =>/all
+  instantiated with s/Any."
+  [=>-schema]
+  {:post [(satisfies? s/Schema %)]}
+  (let [=>-schema (cond-> =>-schema
+                    (instance? PolySchema =>-schema) inst-most-general)
+        _ (assert (instance? schema.core.FnSchema =>-schema) (pr-str =>-schema))
+        {:keys [fixed-input-schemas variable-input-schema]} 
+        (split-arities =>-schema)]
+    (apply s/conditional
+           (concat
+             (mapcat (cc/fn [fixed-input-schema]
+                       (let [arity (count fixed-input-schema)]
+                         [(every-pred vector? #(= arity (count %)))
+                          fixed-input-schema]))
+                     fixed-input-schemas)
+             (some->> variable-input-schema
+                      (vector :else))))))
+
+(cc/defn return-schema
+  "Returns the schema of the return value of the => schema,
+  or =>/all instantiated with s/Any."
+  [=>-schema]
+  {:post [(satisfies? s/Schema %)]}
+  (let [=>-schema (cond-> =>-schema
+                    (instance? PolySchema =>-schema) inst-most-general)
+        _ (assert (instance? schema.core.FnSchema =>-schema))]
+    (:output-schema =>-schema)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Schematized defrecord and (de,let)fn macros

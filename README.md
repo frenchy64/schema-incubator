@@ -27,7 +27,7 @@ generalized templates (ie., generalizing variables to the left of the `:..`).
 The following two functions are instrumented in the same way.
 
 ```clojure
-(poly/defn :all [S T :..]
+(poly/defn :all [S T ...]
   rest-args-poly :- S
   [& xs :- {:a S :b T} :.. T]
   x)
