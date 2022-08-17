@@ -37,6 +37,18 @@
                  ex-data
                  (select-keys #{:type :schema :value})))))))
 
+(deftest poly-check-test
+  (sut/check
+    (poly/fn :all [X] [a :- X] a)
+    {:num-tests 2
+     :seed 1634677540521})
+  (sut/check
+    (poly/fn :all [X :..] :- (poly/=> X X :.. X)
+      [a :- (poly/=> X X :.. X)] a)
+    {:num-tests 2
+     :seed 1634677540521})
+  )
+
 (deftest generator-test
   (is (integer? ((gen/generate
                    (sut/generator (s/=> s/Int s/Int)))

@@ -16,13 +16,13 @@
 (defn- fn-schema-generator
   "Generator for s/=> schemas."
   [=>-schema params]
-  (let [args-schema (poly/args-schema =>-schema)
+  (let [args-validator (s/validator (poly/args-schema =>-schema))
         return-gen (generator (poly/return-schema =>-schema) params)]
     (gen/sized
       (fn [size]
         (gen/return
           (fn [& args]
-            (s/validate args-schema (vec args))
+            (args-validator (vec args))
             (gen/generate return-gen size)))))))
 
 (s/defn generator
@@ -40,6 +40,7 @@
                    ((or (wrappers s) identity)
                     (or (leaf-generators s)
                         (sgen/composite-generator (s/spec s) params)))))]
+     (prn "generator" (str schema))
      (gen/fmap
        (s/validator schema)
        (gen schema {:subschema-generator gen :cache #?(:clj (java.util.IdentityHashMap.)
@@ -74,10 +75,10 @@
        (instance? PolySchema s)
        (qc (prop'/for-all
              [insts (apply gen/tuple
-                           (map (fn [a]
-                                  (assert (= :schema (:kind (meta a)))
-                                          [a (meta a)])
-                                  (generator s/Any))
+                           (map (fn [[a {:keys [kind]}]]
+                                  (case kind
+                                    :schema (generator s/Any)
+                                    :.. (gen/vector (generator s/Any))))
                                 (:parsed-decl s)))
               :let [s (apply poly/instantiate s insts)]
               args (generator (poly/args-schema s))]

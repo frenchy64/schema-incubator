@@ -157,11 +157,11 @@
            (concat
              (mapcat (cc/fn [fixed-input-schema]
                        (let [arity (count fixed-input-schema)]
-                         [(every-pred vector? #(= arity (count %)))
+                         [(every-pred (some-fn nil? coll?) #(= arity (count %)))
                           fixed-input-schema]))
                      fixed-input-schemas)
              (some->> variable-input-schema
-                      (vector :else))))))
+                      (list :else))))))
 
 (cc/defn return-schema
   "Returns the schema of the return value of the => schema,
