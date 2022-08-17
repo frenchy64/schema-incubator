@@ -8,10 +8,10 @@
       - The optional last argument also checks the printed Clojure representation of the error.
     - (invalid-call! s x) asserts that calling the function throws an error."
   (:refer-clojure :exclude [parse-long])
-  #?(:clj (:use clojure.test [schema.test-macros :only [valid! invalid! invalid-call! is-assert!]]))
+  #?(:clj (:use clojure.test [com.ambrosebs.schema-incubator.poly.test-macros :only [valid! invalid! invalid-call! is-assert!]]))
   #?(:cljs (:use-macros
              [cljs.test :only [is deftest testing are]]
-             [schema.test-macros :only [valid! invalid! invalid-call! is-assert!]]))
+             [com.ambrosebs.schema-incubator.poly.test-macros :only [valid! invalid! invalid-call! is-assert!]]))
   #?(:cljs (:require-macros [clojure.template :refer [do-template]]
                             [schema.macros :as macros]))
   (:require
@@ -23,7 +23,7 @@
    [schema.utils :as utils]
    [schema.core :as s]
    [com.ambrosebs.schema-incubator.poly :as poly]
-   [schema.other-namespace :as other-namespace]
+   [com.ambrosebs.schema-incubator.poly.other-namespace :as other-namespace]
    [schema.spec.core :as spec]
    [schema.spec.collection :as collection]
    #?(:clj [schema.macros :as macros])
@@ -147,7 +147,7 @@
 
 (defprotocol ATestMarkerProtocol)
 
-(s/defn ^:always-validate a-test-marker-protocol-fn
+(poly/defn ^:always-validate a-test-marker-protocol-fn
   "Compile the schema before extending, make sure it works as expected"
   [x :- (s/protocol ATestMarkerProtocol)]
   x)
@@ -171,7 +171,7 @@
 (defprotocol ATestProtocol
   (not-marker-protocol [this]))
 
-(s/defn ^:always-validate a-test-non-marker-protocol-fn
+(poly/defn ^:always-validate a-test-non-marker-protocol-fn
   "Compile the schema before extending, make sure it works as expected"
   [x :- (s/protocol ATestProtocol)]
   x)
@@ -708,7 +708,7 @@
       (is (= (s/=> s/Keyword s/Int s/Int [s/Int] [s/Bool])
              schema))))
   (testing "expand AnyDotted"
-    (let [X (s/->AnyDotted s/Int)
+    (let [X (poly/->AnyDotted s/Int)
           schema (s/=> s/Keyword s/Int s/Int [X] :.. X)]
       (is (= (s/=> s/Keyword s/Int s/Int & [[s/Int]])
              schema)))))
@@ -907,20 +907,20 @@
 (def OddLong (s/both (s/pred odd?) #?(:cljs s/Int :clj long)))
 
 (def +test-fn-schema+
-  "Schema for (s/fn ^String [^OddLong x y])"
+  "Schema for (poly/fn ^String [^OddLong x y])"
   (s/=> s/Str OddLong s/Any))
 
 (deftest simple-validated-meta-test
-  (let [f (s/fn ^s/Str foo [^OddLong arg0 arg1])]
+  (let [f (poly/fn ^s/Str foo [^OddLong arg0 arg1])]
     (is (= +test-fn-schema+ (s/fn-schema f)))))
 
 #?(:bb nil :clj
 (deftest no-wrapper-fn-test
-  (let [f (s/fn this [] this)]
+  (let [f (poly/fn this [] this)]
     (is (identical? f (f))))))
 
 (deftest no-schema-fn-test
-  (let [f (s/fn [arg0 arg1] (+ arg0 arg1))]
+  (let [f (poly/fn [arg0 arg1] (+ arg0 arg1))]
     (is (= (s/=> s/Any s/Any s/Any) (s/fn-schema f)))
     (s/with-fn-validation
       (is (= 4 (f 1 3))))
@@ -928,7 +928,7 @@
 
 (deftest simple-validated-fn-test
   (let [fthiss (atom [])
-        f (s/fn test-fn :- (s/pred even?)
+        f (poly/fn test-fn :- (s/pred even?)
             [^s/Int x y :- {:foo (s/both s/Int (s/pred odd?))}]
             (swap! fthiss conj test-fn)
             (+ x (:foo y -100)))]
@@ -950,11 +950,11 @@
   (testing
     "Tests that the anonymous function schema macro can handle a
     name, a schema without a name and no return schema."
-    (let [named-square (s/fn square :- s/Int [x :- s/Int]
+    (let [named-square (poly/fn square :- s/Int [x :- s/Int]
                          (* x x))
-          anon-square (s/fn :- s/Int [x :- s/Int]
+          anon-square (poly/fn :- s/Int [x :- s/Int]
                         (* x x))
-          arg-only-square (s/fn [x :- s/Int] (* x x))]
+          arg-only-square (poly/fn [x :- s/Int] (* x x))]
       (is (= 100
              (named-square 10)
              (anon-square 10)
@@ -963,7 +963,7 @@
 
 
 (deftest always-validated-fn-test
-  (let [f (s/fn ^:always-validate test-fn :- (s/pred even?)
+  (let [f (poly/fn ^:always-validate test-fn :- (s/pred even?)
             [x :- (s/pred pos?)]
             (inc x))]
     (is (= 2 (f 1)))
@@ -971,13 +971,13 @@
     (invalid-call! f -1)))
 
 
-(s/defn ^:never-validate never-validated-test-fn :- (s/pred even?)
+(poly/defn ^:never-validate never-validated-test-fn :- (s/pred even?)
   [x :- (s/pred pos?)]
   (inc x))
 
 (deftest never-validated-fn-test
   (doseq [f [never-validated-test-fn
-             (s/fn ^:never-validate test-fn :- (s/pred even?)
+             (poly/fn ^:never-validate test-fn :- (s/pred even?)
                [x :- (s/pred pos?)]
                (inc x))]]
     (s/with-fn-validation
@@ -985,13 +985,13 @@
       (is (= 3 (f 2)))
       (is (= 0 (f -1))))))
 
-(s/defn ^:never-validate never-validated-rest-test-fn :- (s/pred even?)
+(poly/defn ^:never-validate never-validated-rest-test-fn :- (s/pred even?)
   [arg0 & [rest0 :- (s/pred pos?)]]
   (+ arg0 (or rest0 2)))
 
 (deftest never-validated-rest-test
   (doseq [f [never-validated-rest-test-fn
-             (s/fn ^:never-validate rest-test-fn :- (s/pred even?)
+             (poly/fn ^:never-validate rest-test-fn :- (s/pred even?)
                [arg0 & [rest0 :- (s/pred pos?)]]
                (+ arg0 (or rest0 2)))]]
     (s/with-fn-validation
@@ -1001,11 +1001,11 @@
 
 (s/set-compile-fn-validation! false)
 
-(s/defn elided-validation-test-fn :- (s/pred even?)
+(poly/defn elided-validation-test-fn :- (s/pred even?)
   [x :- (s/pred pos?)]
   (inc x))
 
-(s/defn ^:always-validate elided-validation-always-test-fn :- (s/pred even?)
+(poly/defn ^:always-validate elided-validation-always-test-fn :- (s/pred even?)
   [x :- (s/pred pos?)]
   (inc x))
 
@@ -1025,7 +1025,7 @@
 
 (deftest destructured-validated-fn-test
   (let [LongPair [(s/one s/Int 'x) (s/one s/Int 'y)]
-        f (s/fn foo :- s/Int
+        f (poly/fn foo :- s/Int
             [^LongPair [x y] ^s/Int arg1]
             (+ x y arg1))]
     (is (= (s/=> s/Int LongPair s/Int)
@@ -1035,7 +1035,7 @@
       (invalid-call! f ["a" 2] 3))))
 
 (deftest two-arity-fn-test
-  (let [f (s/fn foo :- s/Int
+  (let [f (poly/fn foo :- s/Int
             ([^s/Str arg0 ^s/Int arg1] (+ arg1 (foo arg0)))
             ([^s/Str arg0] (parse-long arg0)))]
     (is (= (s/=>* s/Int [s/Str] [s/Str s/Int])
@@ -1044,7 +1044,7 @@
     (is (= 10 (f "3" 7)))))
 
 (deftest infinite-arity-fn-test
-  (let [f (s/fn foo :- s/Int
+  (let [f (poly/fn foo :- s/Int
             ([^s/Int arg0] (inc arg0))
             ([^s/Int arg0 & strs :- [s/Str]]
                (reduce + (foo arg0) (map count strs))))]
@@ -1058,7 +1058,7 @@
 (deftest rest-arg-destructuring-test
   (testing "no schema"
     (let [fthiss (atom [])
-          f (s/fn foo :- s/Int
+          f (poly/fn foo :- s/Int
               [^s/Int arg0 & [rest0]]
               (swap! fthiss conj foo)
               (+ arg0 (or rest0 2)))]
@@ -1073,7 +1073,7 @@
         #?(:bb nil
            :clj (is (every? #(identical? % f) fthiss))))))
   (testing "arg schema"
-    (let [f (s/fn foo :- s/Int
+    (let [f (poly/fn foo :- s/Int
               [^s/Int arg0 & [rest0 :- s/Int]] (+ arg0 (or rest0 2)))]
       (is (= (s/=>* s/Int [s/Int & [(s/optional s/Int 'rest0)]])
              (s/fn-schema f)))
@@ -1083,7 +1083,7 @@
         (invalid-call! f 4 9 2)
         (invalid-call! f 4 1.5))))
   (testing "list schema"
-    (let [f (s/fn foo :- s/Int
+    (let [f (poly/fn foo :- s/Int
               [^s/Int arg0 & [rest0] :- [s/Int]] (+ arg0 (or rest0 2)))]
       (is (= (s/=>* s/Int [s/Int & [s/Int]])
              (s/fn-schema f)))
@@ -1095,13 +1095,13 @@
 
 (deftest fn-recursion-test
   (testing "non-tail recursion"
-    (let [f (s/fn fib :- s/Int [n :- s/Int]
+    (let [f (poly/fn fib :- s/Int [n :- s/Int]
               (if (<= n 2) 1 (+ (fib (- n 1)) (fib (- n 2)))))]
       (is (= 8 (f 6)))
       (s/with-fn-validation
         (is (= 8 (f 6))))))
   (testing "tail recursion"
-    (let [f (s/fn fact :- s/Int [n :- s/Int ret :- s/Int]
+    (let [f (poly/fn fact :- s/Int [n :- s/Int ret :- s/Int]
               (if (<= n 1) ret (recur (dec n) (* ret n))))]
       (is (= 120 (f 5 1)))
       (s/with-fn-validation
@@ -1109,21 +1109,21 @@
 
 (deftest fn-metadata-test
   (let [->mkeys #(set (keys (meta %)))]
-    (is (= (into (->mkeys (s/fn [])) [:blah])
-           (->mkeys ^:blah (s/fn []))))))
+    (is (= (into (->mkeys (poly/fn [])) [:blah])
+           (->mkeys ^:blah (poly/fn []))))))
 
 ;;; defn
 
 (def OddLongString
   (s/both s/Str (s/pred #(odd? (parse-long %)) 'odd-str?)))
 
-(s/defn ^{:tag String} simple-validated-defn :- OddLongString
+(poly/defn ^{:tag String} simple-validated-defn :- OddLongString
   "I am a simple schema fn"
   {:metadata :bla}
   [arg0 :- OddLong]
   (str arg0))
 
-(s/defn validated-pre-post-defn :- OddLong
+(poly/defn validated-pre-post-defn :- OddLong
   "I have pre/post conditions"
   [arg0 :- s/Num]
   {:pre  [(odd? arg0) (> 10 arg0)]
@@ -1135,10 +1135,10 @@
 
 (def ^String +bad-input-str+ "Input to simple-validated-defn does not match schema")
 
-;; Test that s/defn returns var
+;; Test that poly/defn returns var
 #?(:clj
 (with-test
-  (s/defn with-test-fn [a b] (+ a b))
+  (poly/defn with-test-fn [a b] (+ a b))
   (is (= 3 (with-test-fn 1 2)))
   (is (= 0 (with-test-fn 10 -10)))))
 
@@ -1161,7 +1161,7 @@
   (is (= +simple-validated-defn-schema+ (s/fn-schema simple-validated-defn)))))
 
 #?(:clj
-(s/defn ^String multi-arglist-validated-defn :- OddLongString
+(poly/defn ^String multi-arglist-validated-defn :- OddLongString
   "I am a multi-arglist schema fn"
   {:metadata :bla}
   ([arg0 :- OddLong]
@@ -1207,7 +1207,7 @@
        :default (do (is (.contains (.getClassName ^StackTraceElement (first (.getStackTrace e))) "simple_validated_defn"))
                     (is (.startsWith (.getFileName ^StackTraceElement (first (.getStackTrace e))) "core_test.clj")))))))
 
-(s/defn ^:always-validate always-validated-defn :- (s/pred even?)
+(poly/defn ^:always-validate always-validated-defn :- (s/pred even?)
   [x :- (s/pred pos?)]
   (inc x))
 
@@ -1216,10 +1216,10 @@
   (invalid-call! always-validated-defn 2)
   (invalid-call! always-validated-defn -1))
 
-(s/defn fib :- s/Int [n :- s/Int]
+(poly/defn fib :- s/Int [n :- s/Int]
   (if (<= n 2) 1 (+ (fib (- n 1)) (fib (- n 2)))))
 
-(s/defn fact :- s/Int [n :- s/Int ret :- s/Int]
+(poly/defn fact :- s/Int [n :- s/Int ret :- s/Int]
   (if (<= n 1) ret (recur (dec n) (* ret n))))
 
 
@@ -1237,14 +1237,14 @@
 
 (deftest minimal-letfn-test
   (is (= "1"
-         (s/letfn
+         (poly/letfn
              []
            "1"))))
 
 (deftest simple-letfn-test
   (is (= "1"
          (s/with-fn-validation
-           (s/letfn
+           (poly/letfn
                [(x :- s/Num [] 1)
                 (y :- s/Str [m :- s/Num] (str m))]
              (y (x)))))))
@@ -1252,82 +1252,82 @@
 (deftest unannotated-letfn-test
   (is (= "1"
          (s/with-fn-validation
-           (s/letfn
+           (poly/letfn
                [(x [] 1)
                 (y [m] (str m))]
              (y (x)))))))
 
 (deftest no-validation-letfn-test
   (is (= "1"
-         (s/letfn
+         (poly/letfn
              [(x :- s/Num [] 1)
               (y :- s/Str [m :- s/Num] (str m))]
            (y (x))))))
 
 (deftest mutual-letfn-test
   (is (= [true false]
-         (s/letfn
+         (poly/letfn
            [(even [x] (if (zero? x) true (odd (dec x))))
             (odd [x] (if (zero? x) false (even (dec x))))]
            [(even 10)
             (odd 10)])))
   (is (= [true false]
-         (s/letfn
+         (poly/letfn
            [(even :- s/Int [x :- s/Int] (if (zero? x) true (odd (dec x))))
             (odd :- s/Int [x :- s/Int] (if (zero? x) false (even (dec x))))]
            [(even 10)
             (odd 10)])))
   (is (every? s/fn-schema
-              (s/letfn
+              (poly/letfn
                 [(even :- s/Int [x :- s/Int] (if (zero? x) true (odd (dec x))))
                  (odd :- s/Int [x :- s/Int] (if (zero? x) false (even (dec x))))]
                 [even odd]))))
 
 (deftest error-letfn-test
   (s/with-fn-validation
-    (s/letfn
+    (poly/letfn
         [(x :- s/Num [] "1")
          (y :- s/Str [m :- s/Num] (str m))]
       (invalid-call! y (x))))
   (testing "without-fn-validation"
     (s/without-fn-validation
-      (s/letfn
+      (poly/letfn
         [(f :- s/Num [] "1")]
         (is (= "1" (f))))
       (testing "^:always-validate"
-        (s/letfn
+        (poly/letfn
           [(^:always-validate f :- s/Num [] "1")]
           (invalid-call! f)))))
   (testing "with-fn-validation"
     (testing "^:always-validate"
-      (s/letfn
+      (poly/letfn
         [(^:always-validate f :- s/Num [] "1")]
         (invalid-call! f)))
     (testing "^:never-validate"
       (s/with-fn-validation
-        (s/letfn
+        (poly/letfn
           [(^:never-validate f :- s/Num [] "1")]
           (is (= "1" (f)))))))
   (testing "self recursion"
     (s/with-fn-validation
-      (s/letfn
+      (poly/letfn
         [(f :- s/Num [] "1")]
         (invalid-call! f))
-      (s/letfn
+      (poly/letfn
         [(f [x :- s/Num])]
         (invalid-call! f "1"))
-      (s/letfn
+      (poly/letfn
         [(f
            ([] (f "1"))
            ([x :- s/Int]))]
         (invalid-call! f))))
   (testing "mutual recursion"
     (s/with-fn-validation
-      (s/letfn
+      (poly/letfn
         [(f [] (g "1"))
          (g [x :- s/Num])]
         (invalid-call! f))
-      (s/letfn
+      (poly/letfn
         [(f [] (g "1"))
          (g :- s/Num [x] x)]
         (invalid-call! f)))))
@@ -1339,7 +1339,7 @@
   (def +primitive-validated-defn-schema+
     (s/=> long OddLong))
 
-  (s/defn primitive-validated-defn :- long
+  (poly/defn primitive-validated-defn :- long
     [^long arg0 :- OddLong]
     (inc arg0))
 
@@ -1357,7 +1357,7 @@
 
     (is (= 5 (primitive-validated-defn 4))))
 
-  (s/defn another-primitive-fn :- double
+  (poly/defn another-primitive-fn :- double
     [^long arg0]
     1.0)
 
@@ -1770,19 +1770,19 @@
 ;; Polymorphic schemas
 
 (s/defschema PolySemanticsTestSuite
-  {:args-shadow-schema-variables (s/all [x] (s/=> x x))
-   :poly-identity (s/all [T] (s/=> T T))
-   :poly-first (s/all [T] (s/=> T [T]))
-   :poly-map-nodot (s/all [X Y] (s/=> [Y] (s/=> Y X) [X]))
-   :poly-map-dot (s/all [X Y :.. Z] (s/=> [Z] (s/=> Z X Y :.. Y) [X] [Y] :.. Y))
-   :poly-map-dot-arities (s/all [X Y Z S :.. T]
+  {:args-shadow-schema-variables (poly/all [x] (s/=> x x))
+   :poly-identity (poly/all [T] (s/=> T T))
+   :poly-first (poly/all [T] (s/=> T [T]))
+   :poly-map-nodot (poly/all [X Y] (s/=> [Y] (s/=> Y X) [X]))
+   :poly-map-dot (poly/all [X Y :.. Z] (s/=> [Z] (s/=> Z X Y :.. Y) [X] [Y] :.. Y))
+   :poly-map-dot-arities (poly/all [X Y Z S :.. T]
                                 (s/=>* [T]
                                        [(s/=> T X)             [X]]
                                        [(s/=> T X Y)           [X] [Y]]
                                        [(s/=> T X Y Z)         [X] [Y] [Z]]
                                        [(s/=> T X Y Z S :.. S) [X] [Y] [Z] [S] :.. S]))})
 
-(s/defn ^:always-validate poly-semantics-test-suite
+(poly/defn ^:always-validate poly-semantics-test-suite
   [{:keys [args-shadow-schema-variables
            poly-identity
            poly-first
@@ -1814,42 +1814,42 @@
   (s/with-fn-validation (invalid-call! poly-map-dot-arities + [1] [2] [3] 4))
   (s/with-fn-validation (invalid-call! poly-map-dot-arities + [1] [2] [3] [4] 5)))
 
-(s/defn :all [x]
+(poly/defn :all [x]
   args-shadow-schema-variables :- x
   [x :- x]
   x)
 
-(s/defn :all [T]
+(poly/defn :all [T]
   poly-identity :- T
   [x :- T]
   (s/validate T x))
 
-(s/defn :all [T]
+(poly/defn :all [T]
   poly-first :- T
   [xs :- [T]]
   (first xs))
 
 #_ ;;TODO
-(s/defn :all [T ;TODO :- [:=> :schema :schema :schema]
+(poly/defn :all [T ;TODO :- [:=> :schema :schema :schema]
               ]
   ho-schema-fn :- T
   [xs :- (T s/Int s/Bool)]
   (first xs))
 
-(s/defn :all [X Y]
+(poly/defn :all [X Y]
   poly-map-nodot :- [Y]
   [f :- (s/=> Y X)
    xs :- [X]]
   (map f xs))
 
-(s/defn :all [X Y :.. Z]
+(poly/defn :all [X Y :.. Z]
   poly-map-dot :- [Z]
   [f :- (s/=> Z X Y :.. Y)
    xs :- [X]
    & yss :- [Y] :.. Y]
   (apply map f xs yss))
 
-(s/defn :all [X Y Z S :.. T]
+(poly/defn :all [X Y Z S :.. T]
   poly-map-dot-arities :- [T]
   ([f :- (s/=> T X)
     xs :- [X]]
@@ -1871,38 +1871,38 @@
    (apply map f xs ys zs ss)))
 
 (deftest explain-all-test
-  (is (= '(all [x] (s/=> x)) (s/explain (s/all [x] (s/=> x)))))
+  (is (= '(all [x] (s/=> x)) (s/explain (poly/all [x] (s/=> x)))))
   ;;FIXME ideally (all [T] (s/=> T))
   (is (= '(all [T] (schema.core/->FnSchema T [[(schema.core/one T (quote x))]]))
          (s/explain (s/fn-schema poly-identity)))))
 
 (deftest inst-test
-  (is (= (@#'s/instantiate (s/all [a] (s/=> a))
+  (is (= (@#'poly/instantiate (poly/all [a] (s/=> a))
                            s/Int)
          (s/=> s/Int)))
-  (is (not= (@#'s/instantiate (s/all [a] (s/=> a))
+  (is (not= (@#'poly/instantiate (poly/all [a] (s/=> a))
                               s/Bool)
             (s/=> s/Int)))
-  (is (= (@#'s/instantiate (s/all [a] (s/=> a a))
+  (is (= (@#'poly/instantiate (poly/all [a] (s/=> a a))
                            s/Int)
          (s/=> s/Int s/Int)))
-  (is (= (@#'s/instantiate (s/all [a b] (s/=> a b a b))
+  (is (= (@#'poly/instantiate (poly/all [a b] (s/=> a b a b))
                            s/Int s/Bool)
          (s/=> s/Int s/Bool s/Int s/Bool)))
   (is (= '(=> Int Int)
-         (s/explain (@#'s/instantiate (s/fn-schema poly-identity) s/Int))))
+         (s/explain (@#'poly/instantiate (s/fn-schema poly-identity) s/Int))))
   (is (thrown-with-msg? Exception #"Wrong number of arguments"
-                        (@#'s/instantiate (s/fn-schema poly-map-nodot) s/Int))))
+                        (@#'poly/instantiate (s/fn-schema poly-map-nodot) s/Int))))
 
 (deftest inst-most-general-test 
   (is (= '(=> Any Any)
-         (s/explain (@#'s/inst-most-general (s/fn-schema poly-identity)))))
+         (s/explain (@#'poly/inst-most-general (s/fn-schema poly-identity)))))
   (is (= '(=> Any [Any])
-         (s/explain (@#'s/inst-most-general (s/fn-schema poly-first)))))
+         (s/explain (@#'poly/inst-most-general (s/fn-schema poly-first)))))
   (is (= '(=> [Any] (=> Any Any) [Any])
-         (s/explain (@#'s/inst-most-general (s/fn-schema poly-map-nodot)))))
+         (s/explain (@#'poly/inst-most-general (s/fn-schema poly-map-nodot)))))
   (is (= '(=> [Any] (=> Any Any & [Any]) [Any] & [[Any]])
-         (s/explain (@#'s/inst-most-general (s/fn-schema poly-map-dot))))))
+         (s/explain (@#'poly/inst-most-general (s/fn-schema poly-map-dot))))))
 
 (deftest poly-defn-semantics-test
   (poly-semantics-test-suite
@@ -1915,14 +1915,14 @@
 
 (deftest poly-fn-semantics-test
   (testing "no name"
-    (is (= 1 ((s/fn :all [T] [x :- T] x) 1)))
+    (is (= 1 ((poly/fn :all [T] [x :- T] x) 1)))
     (poly-semantics-test-suite
-      {:args-shadow-schema-variables (s/fn :all [x] :- x [x :- x] x)
-       :poly-identity (s/fn :all [T] :- T [x :- T] (s/validate T x))
-       :poly-first (s/fn :all [T] :- T [xs :- [T]] (first xs))
-       :poly-map-nodot (s/fn :all [X Y] :- [Y] [f :- (s/=> Y X) xs :- [X]] (map f xs))
-       :poly-map-dot (s/fn :all [X Y :.. Z] :- [Z] [f :- (s/=> Z X Y :.. Y) xs :- [X] & yss :- [Y] :.. Y] (apply map f xs yss))
-       :poly-map-dot-arities (s/fn :all [X Y Z S :.. T]
+      {:args-shadow-schema-variables (poly/fn :all [x] :- x [x :- x] x)
+       :poly-identity (poly/fn :all [T] :- T [x :- T] (s/validate T x))
+       :poly-first (poly/fn :all [T] :- T [xs :- [T]] (first xs))
+       :poly-map-nodot (poly/fn :all [X Y] :- [Y] [f :- (s/=> Y X) xs :- [X]] (map f xs))
+       :poly-map-dot (poly/fn :all [X Y :.. Z] :- [Z] [f :- (s/=> Z X Y :.. Y) xs :- [X] & yss :- [Y] :.. Y] (apply map f xs yss))
+       :poly-map-dot-arities (poly/fn :all [X Y Z S :.. T]
                                :- [T]
                                ([f :- (s/=> T X) xs :- [X]] (map f xs))
                                ([f :- (s/=> T X Y) xs :- [X] ys :- [Y]] (map f xs ys))
@@ -1930,12 +1930,12 @@
                                ([f :- (s/=> T X Y Z S :.. S) xs :- [X] ys :- [Y] zs :- [Z] & ss :- [S] :.. S] (apply map f xs ys zs ss)))}))
   (testing "with name"
     (poly-semantics-test-suite
-      {:args-shadow-schema-variables (s/fn :all [x] args-shadow-schema-variables :- x [x :- x] x)
-       :poly-identity (s/fn :all [T] poly-identity :- T [x :- T] (s/validate T x))
-       :poly-first (s/fn :all [T] poly-first :- T [xs :- [T]] (first xs))
-       :poly-map-nodot (s/fn :all [X Y] poly-map-nodot :- [Y] [f :- (s/=> Y X) xs :- [X]] (map f xs))
-       :poly-map-dot (s/fn :all [X Y :.. Z] poly-map-dot :- [Z] [f :- (s/=> Z X Y :.. Y) xs :- [X] & yss :- [Y] :.. Y] (apply map f xs yss))
-       :poly-map-dot-arities (s/fn :all [X Y Z S :.. T]
+      {:args-shadow-schema-variables (poly/fn :all [x] args-shadow-schema-variables :- x [x :- x] x)
+       :poly-identity (poly/fn :all [T] poly-identity :- T [x :- T] (s/validate T x))
+       :poly-first (poly/fn :all [T] poly-first :- T [xs :- [T]] (first xs))
+       :poly-map-nodot (poly/fn :all [X Y] poly-map-nodot :- [Y] [f :- (s/=> Y X) xs :- [X]] (map f xs))
+       :poly-map-dot (poly/fn :all [X Y :.. Z] poly-map-dot :- [Z] [f :- (s/=> Z X Y :.. Y) xs :- [X] & yss :- [Y] :.. Y] (apply map f xs yss))
+       :poly-map-dot-arities (poly/fn :all [X Y Z S :.. T]
                                poly-map-dot-arities :- [T]
                                ([f :- (s/=> T X) xs :- [X]] (map f xs))
                                ([f :- (s/=> T X Y) xs :- [X] ys :- [Y]] (map f xs ys))
@@ -1944,17 +1944,17 @@
 
 (deftest poly-letfn-semantics-test
   (poly-semantics-test-suite
-    {:args-shadow-schema-variables (s/letfn [(:all [x] args-shadow-schema-variables :- x [x :- x] x)]
+    {:args-shadow-schema-variables (poly/letfn [(:all [x] args-shadow-schema-variables :- x [x :- x] x)]
                                      args-shadow-schema-variables)
-     :poly-identity (s/letfn [(:all [T] poly-identity :- T [x :- T] (s/validate T x))]
+     :poly-identity (poly/letfn [(:all [T] poly-identity :- T [x :- T] (s/validate T x))]
                       poly-identity)
-     :poly-first (s/letfn [(:all [T] poly-first :- T [xs :- [T]] (first xs))]
+     :poly-first (poly/letfn [(:all [T] poly-first :- T [xs :- [T]] (first xs))]
                    poly-first)
-     :poly-map-nodot (s/letfn [(:all [X Y] poly-map-nodot :- [Y] [f :- (s/=> Y X) xs :- [X]] (map f xs))]
+     :poly-map-nodot (poly/letfn [(:all [X Y] poly-map-nodot :- [Y] [f :- (s/=> Y X) xs :- [X]] (map f xs))]
                        poly-map-nodot)
-     :poly-map-dot (s/letfn [(:all [X Y :.. Z] poly-map-dot :- [Z] [f :- (s/=> Z X Y :.. Y) xs :- [X] & yss :- [Y] :.. Y] (apply map f xs yss))]
+     :poly-map-dot (poly/letfn [(:all [X Y :.. Z] poly-map-dot :- [Z] [f :- (s/=> Z X Y :.. Y) xs :- [X] & yss :- [Y] :.. Y] (apply map f xs yss))]
                      poly-map-dot)
-     :poly-map-dot-arities (s/letfn [(:all [X Y Z S :.. T]
+     :poly-map-dot-arities (poly/letfn [(:all [X Y Z S :.. T]
                                        poly-map-dot-arities :- [T]
                                        ([f :- (s/=> T X) xs :- [X]] (map f xs))
                                        ([f :- (s/=> T X Y) xs :- [X] ys :- [Y]] (map f xs ys))

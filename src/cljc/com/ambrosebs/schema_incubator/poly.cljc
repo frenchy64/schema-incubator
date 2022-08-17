@@ -5,7 +5,8 @@
   (:require
    #?(:clj [clojure.pprint :as pprint])
    [clojure.string :as str]
-   #?(:clj [schema.macros :as macros])
+   [schema.core :as s]
+   #?(:clj [com.ambrosebs.schema-incubator.poly.macros :as macros])
    [schema.utils :as utils]
    [schema.spec.core :as spec :include-macros true]
    [schema.spec.leaf :as leaf])
@@ -23,8 +24,8 @@
 (declare ^:private inst-most-general)
 
 (macros/defrecord-schema PolySchema [decl parsed-decl schema-form inst->schema]
-  Schema
-  (spec [this] (spec (inst-most-general this)))
+  s/Schema
+  (spec [this] (s/spec (inst-most-general this)))
   (explain [this] (list 'all decl schema-form)))
 
 (defn- instantiate
@@ -33,7 +34,7 @@
   {:pre [(instance? PolySchema for-all-schema)]}
   (macros/assert! (= (count schemas) (count parsed-decl))
                   "Wrong number of arguments to instantiate schema %s: expected %s, actual %s"
-                  (explain for-all-schema)
+                  (s/explain for-all-schema)
                   (count parsed-decl)
                   (count schemas))
   (apply inst->schema schemas))
@@ -42,8 +43,8 @@
   {:pre [(instance? PolySchema =>-schema)]}
   (mapv (clojure.core/fn [[sym {:keys [kind]}]]
           (case kind
-            :schema Any
-            :.. (->AnyDotted Any)
+            :schema s/Any
+            :.. (->AnyDotted s/Any)
             (throw (ex-info (str "Unknown kind: " kind)
                             {}))))
         (:parsed-decl =>-schema)))
@@ -88,22 +89,22 @@
 ;; Currently function schemas are purely descriptive, and do not carry any validation logic.
 
 (clojure.core/defn explain-input-schema [input-schema]
-  (let [[required more] (split-with #(instance? One %) input-schema)]
-    (concat (map #(explain (.-schema ^One %)) required)
+  (let [[required more] (split-with #(instance? schema.core.One %) input-schema)]
+    (concat (map #(s/explain (.-schema ^schema.core.One %)) required)
             (when (seq more)
-              ['& (mapv explain more)]))))
+              ['& (mapv s/explain more)]))))
 
 (macros/defrecord-schema FnSchema [output-schema input-schemas] ;; input-schemas sorted by arity
-  Schema
+  s/Schema
   (spec [this] (leaf/leaf-spec (spec/simple-precondition this ifn?)))
   (explain [this]
     (if (> (count input-schemas) 1)
-      (list* '=>* (explain output-schema) (map explain-input-schema input-schemas))
-      (list* '=> (explain output-schema) (explain-input-schema (first input-schemas))))))
+      (list* '=>* (s/explain output-schema) (map explain-input-schema input-schemas))
+      (list* '=> (s/explain output-schema) (explain-input-schema (first input-schemas))))))
 
 (clojure.core/defn- arity [input-schema]
   (if (seq input-schema)
-    (if (instance? One (last input-schema))
+    (if (instance? schema.core.One (last input-schema))
       (count input-schema)
       #?(:clj Long/MAX_VALUE
          :cljs js/Number.MAX_VALUE))
@@ -462,7 +463,7 @@
                             ~@(when doc [doc])
                             ~@opts
                             ~@sigs)
-        instrument? (instrument-defprotocol?)]
+        instrument? (s/instrument-defprotocol?)]
     `(do ~defprotocol-form
          ;; put everything that relies on protocol implementation details here so the user can
          ;; turn it off for whatever reason.
@@ -471,7 +472,7 @@
              ;; a multimethod is extended so we're stuck.
              #?(:bb nil
                 :default (map (fn [{:keys [method-name instrument-method]}]
-                                `(when (instrument-defprotocol?)
+                                `(when (s/instrument-defprotocol?)
                                    ~instrument-method))
                               parsed-sigs)))
          ;; we always want s/fn-schema to work on protocol methods and have :schema

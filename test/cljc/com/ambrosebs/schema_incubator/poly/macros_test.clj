@@ -3,7 +3,7 @@
   (:use clojure.test)
   (:require
    [schema.core :as s]
-   [schema.macros :as macros]))
+   [com.ambrosebs.schema-incubator.poly.macros :as macros]))
 
 (deftest extract-leading-fn-kv-pairs-test
   (is (= (macros/extract-leading-fn-kv-pairs [])

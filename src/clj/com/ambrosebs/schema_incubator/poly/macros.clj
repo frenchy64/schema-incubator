@@ -171,7 +171,7 @@
                                                          (fn [template]
                                                            `(let [template# (fn [~dvar] ~template)]
                                                               (cond
-                                                                (instance? schema.core.AnyDotted ~dvar)
+                                                                (instance? com.ambrosebs.schema_incubator.poly.AnyDotted ~dvar)
                                                                 [(template# (:schema ~dvar))]
 
                                                                 (vector? ~dvar)
@@ -373,7 +373,7 @@
   (into [] (mapcat (fn [[sym {:keys [kind]}]]
                      [sym (case kind
                             :schema `schema.core/Any
-                            :.. `(schema.core/->AnyDotted schema.core/Any)
+                            :.. `(com.ambrosebs.schema-incubator.poly/->AnyDotted schema.core/Any)
                             (throw (ex-info (str "Unknown kind: " kind)
                                             {})))]))
         (parse-poly-binder binder)))
@@ -408,10 +408,11 @@
      :raw-arglists (map :raw-arglist processed-arities)
      :schema-form (if poly-binder
                     ;; can't reuse output-schema-sym or schema-bindings since its type variables are instantiated via poly-binder-outer-bindings
-                    `(schema.core/all ~poly-binder
-                                      ~(if (= 1 (count processed-arities))
-                                         `(schema.core/->FnSchema ~output-schema ~[(-> schema-bindings first second)])
-                                         `(schema.core/make-fn-schema ~output-schema ~(mapv second schema-bindings))))
+                    `(com.ambrosebs.schema-incubator.poly/all
+                       ~poly-binder
+                       ~(if (= 1 (count processed-arities))
+                          `(schema.core/->FnSchema ~output-schema ~[(-> schema-bindings first second)])
+                          `(schema.core/make-fn-schema ~output-schema ~(mapv second schema-bindings))))
                     (if (= 1 (count processed-arities))
                       `(schema.core/->FnSchema ~output-schema-sym ~[(ffirst schema-bindings)])
                       `(schema.core/make-fn-schema ~output-schema-sym ~(mapv first schema-bindings))))
@@ -445,7 +446,7 @@
       dotted-schema? `(into ~fixed (let [dvar# ~dvar
                                          template# (fn [~dvar] ~template)]
                                      (cond
-                                       (instance? schema.core.AnyDotted dvar#)
+                                       (instance? com.ambrosebs.schema_incubator.poly.AnyDotted dvar#)
                                        [(template# (:schema dvar#))]
 
                                        (vector? dvar#)
