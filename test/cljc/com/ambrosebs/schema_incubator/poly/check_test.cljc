@@ -38,15 +38,14 @@
                  (select-keys #{:type :schema :value})))))))
 
 (deftest poly-check-test
-  (sut/check
-    (poly/fn :all [X] [a :- X] a)
-    {:num-tests 2
-     :seed 1634677540521})
+  (is (:pass? (sut/check (poly/fn :all [X] :- X [a :- X] a))))
+  (is (not (:pass? (sut/check (poly/fn :all [X] :- X [a :- X] 1)))))
+  (is (not (:pass? (sut/check (poly/fn [a] 1)
+                              {:schema (poly/all [X] (poly/=> X X))}))))
+  #_ ;;TODO
   (sut/check
     (poly/fn :all [X :..] :- (poly/=> X X :.. X)
-      [a :- (poly/=> X X :.. X)] a)
-    {:num-tests 2
-     :seed 1634677540521})
+      [a :- (poly/=> X X :.. X)] a))
   )
 
 (deftest generator-test

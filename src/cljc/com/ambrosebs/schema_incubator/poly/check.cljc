@@ -40,7 +40,6 @@
                    ((or (wrappers s) identity)
                     (or (leaf-generators s)
                         (sgen/composite-generator (s/spec s) params)))))]
-     (prn "generator" (str schema))
      (gen/fmap
        (s/validator schema)
        (gen schema {:subschema-generator gen :cache #?(:clj (java.util.IdentityHashMap.)
@@ -77,15 +76,21 @@
              [insts (apply gen/tuple
                            (map (fn [[a {:keys [kind]}]]
                                   (case kind
-                                    :schema (generator s/Any)
-                                    :.. (gen/vector (generator s/Any))))
+                                    :schema (gen/one-of [(gen/return (s/eq (gensym a)))
+                                                         (gen/return s/Any)])
+                                    :.. (gen/one-of [(gen/vector (gen/return s/Any))
+                                                     (gen/vector (gen/return s/Any))])))
                                 (:parsed-decl s)))
               :let [s (apply poly/instantiate s insts)]
-              args (generator (poly/args-schema s))]
-             (do (s/validate
-                   (poly/return-schema s)
-                   (apply f args))
-                 true)))
+              args (generator (poly/args-schema s))
+              :let [ret-s (poly/return-schema s)
+                    ret-checker (s/checker ret-s)]]
+             (let [ret (apply f args)]
+               (if-some [reason (ret-checker ret)]
+                 (let [{:keys [error]} (macros/validation-error ret-s ret (str (utils/value-name ret)) reason)]
+                   (macros/error! (utils/format* "Output of %s does not match schema: %s" f (pr-str error))
+                                  {:schema ret-s :value ret :error error}) )
+                 true))))
 
        (instance? FnSchema s)
        (let [ret-s (poly/return-schema s)
