@@ -1303,6 +1303,10 @@
   (is (= '(all [T] (schema.core/->FnSchema T [[(schema.core/one T (quote x))]]))
          (s/explain (s/fn-schema poly-identity)))))
 
+(deftest all-test
+  #?(:clj (is (thrown-with-msg? Exception #"Duplicate variable x in binder: \[x x\]"
+                                (eval `(poly/all [~'x ~'x] (poly/=> x)))))))
+
 (deftest instantiate-test
   (is (= (@#'poly/instantiate (poly/all [a] (poly/=> a))
                            s/Int)
