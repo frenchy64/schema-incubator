@@ -55,7 +55,7 @@
                     ret-checker (s/checker ret-s)]]
              (let [ret (apply f args)]
                (if-some [reason (ret-checker ret)]
-                 (let [{:keys [error]} (macros/validation-error ret-s ret (str (utils/value-name ret)) reason)]
+                 (let [{:keys [error]} (macros/validation-error ret-s ret (str (utils/fn-name ret)) reason)]
                    (macros/error! (utils/format* "Output of %s does not match schema: %s" f (pr-str error))
                                   {:schema ret-s :value ret :error error}) )
                  true))))
@@ -67,7 +67,7 @@
                [args (generator (poly/args-schema s))]
                (let [ret (apply f args)]
                  (if-some [reason (ret-checker ret)]
-                   (let [{:keys [error]} (macros/validation-error ret-s ret (str (utils/value-name ret)) reason)]
+                   (let [{:keys [error]} (macros/validation-error ret-s ret (str (utils/fn-name ret)) reason)]
                      (macros/error! (utils/format* "Output of %s does not match schema: %s" f (pr-str error))
                                     {:schema ret-s :value ret :error error}) )
                    true)))))

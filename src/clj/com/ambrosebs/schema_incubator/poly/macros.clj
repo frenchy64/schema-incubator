@@ -250,8 +250,9 @@
                     (cons (into regular-args (when rest-arg ['& rest-arg]))
                           body))})))
 
-(defn parse-poly-binder [binder]
-  (loop [binder binder
+(defn parse-poly-binder [original-binder]
+  (loop [binder original-binder
+         seen #{}
          out []]
     (if (empty? binder)
       out
@@ -259,6 +260,7 @@
             _ (assert (and (symbol? sym)
                            (not (namespace sym)))
                       (str "Expected simple symbol in polymorphic binder: " sym))
+            _ (assert! (not (seen sym)) "Duplicate variable %s in binder: %s" sym original-binder)
             [opts binder] (loop [binder binder
                                  opts {:kind :schema}]
                             (if (not (keyword? (first binder)))
@@ -269,7 +271,7 @@
                                 (= :.. (first binder)) (recur (next binder) (assoc opts :kind :..))
                                 :else (throw (ex-info (str "Unknown keyword in polymorphic binder: " (first binder))
                                                       {})))))]
-        (recur binder (conj out [sym opts]))))))
+        (recur binder (conj seen sym) (conj out [sym opts]))))))
 
 (defn poly-binder-outer-bindings [binder]
   (into [] (mapcat (fn [[sym {:keys [kind]}]]
