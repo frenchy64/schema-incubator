@@ -15,9 +15,12 @@
 
 #?(:clj (set! *warn-on-reflection* true))
 
+(def Never (s/pred (cc/fn [_] false) 'Never))
+(def AnyTrue (s/pred boolean 'AnyTrue))
+(def AnyFalse (s/enum nil false))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Polymorphic Schemas
-
 
 (clojure.core/defrecord ^:no-doc AnyDotted [schema])
 

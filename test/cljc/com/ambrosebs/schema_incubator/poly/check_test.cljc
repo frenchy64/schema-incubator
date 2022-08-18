@@ -81,6 +81,7 @@ every-pred
          (=> Y1 Y0)
          (=> Y0 X :.. X)))
 
+; comp
 #_
 (all [X :.. Y :- [:.. :min 1]]
      {:no-general-inst true}
@@ -88,9 +89,43 @@ every-pred
          (=> (first Y) (second Y)) :..app Y (partition-all 2 Y 1)
          (=> (poly/...app Y (peek Y)) X :.. X)))
 
+; comp
 #_
 (all [X :.. Y :- [:.. :min 1]]
      {:no-general-inst true}
-     (=> (=> (first Y) X :.. X)
-         (=> (first Y) (second Y)) :..app Y (partition-all 2 Y 1)
-         (=> (poly/...app Y (peek Y)) X :.. X)))
+     (s/make-fn-schema
+       (=> (first Y) X :.. X)
+       (->> (partition-all 2 Y 1)
+            (mapv (fn [[ret arg]] (s/one (=> ret arg) (gensym))))
+            (conj (s/one (=> (peek Y) X :.. X) (gensym))))))
+
+; every-pred
+#_
+(all [X :.. Y]
+     (=> (=> s/Bool & [X])
+         (=> s/Any X)
+         & [(=> s/Any X)]
+         ))
+#_
+(all [X Y :.. Z :..]
+     (s/make-fn-schema 
+       (=> (s/eq false) X)
+       [(->> (mapv #(s/one (=> poly/AnyTrue %) (gensym)) Y)
+             (conj (s/one (=> poly/AnyFalse X) (gensym)))
+             (into (mapv (fn [_] (s/one (=> s/Bool poly/Never) (gensym))) Z)))]))
+
+(def every-pred-short-circuits-schema
+  (all [X Y :.. Z :..]
+       (s/make-fn-schema 
+         (=> (s/eq false) X)
+         [(-> (mapv (fn [_] (s/one (=> poly/AnyTrue X) (gensym))) Y)
+              (conj (s/one (=> poly/AnyFalse X) (gensym)))
+              (into (mapv (fn [_] (s/one (=> s/Bool poly/Never) (gensym))) Z)))])))
+
+
+(deftest every-pred-short-circuits-test
+  (is (= '(=> (=> (eq false) Int) (=> (enum nil false) Int))
+         (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [] []))))
+  (is (= '(=> (=> (eq false) Int) (=> (pred AnyTrue) Int) (=> (enum nil false) Int) (=> Bool (pred Never)))
+         (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [1] [2]))))
+  (is (:pass? (sut/check every-pred {:schema every-pred-short-circuits-schema}))))

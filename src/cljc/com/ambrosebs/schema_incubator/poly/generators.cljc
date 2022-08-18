@@ -25,6 +25,19 @@
             (args-validator (vec args))
             (gen/generate return-gen size)))))))
 
+(def +simple-leaf-generators+
+  {poly/Never (gen/such-that (fn [_] (throw (ex-info "Never cannot generate values" {})))
+                             gen/any)
+   poly/AnyTrue (gen/such-that boolean gen/any)})
+
+(defn default-leaf-generators
+  [leaf-generators]
+  (some-fn
+   leaf-generators
+   (sgen/default-leaf-generators
+     +simple-leaf-generators+)))
+
+
 (s/defn generator
   "Just like schema-generators.generators/generator, but also
   generates FnSchema's."
@@ -33,7 +46,7 @@
   ([schema :- sgen/Schema
     leaf-generators :- sgen/LeafGenerators
     wrappers :- sgen/GeneratorWrappers]
-   (let [leaf-generators (sgen/default-leaf-generators leaf-generators)
+   (let [leaf-generators (default-leaf-generators leaf-generators)
          gen (fn [s params]
                (or (when (instance? FnSchema s)
                      (fn-schema-generator s params))
