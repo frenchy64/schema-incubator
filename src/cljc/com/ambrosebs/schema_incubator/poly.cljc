@@ -4,14 +4,10 @@
   (:refer-clojure :exclude [Keyword Symbol Inst atom defprotocol defrecord defn letfn defmethod fn MapEntry ->MapEntry])
   (:require
    [clojure.core :as cc]
-   #?(:clj [clojure.pprint :as pprint])
-   [clojure.string :as str]
    [schema.core :as s #?@(:cljs [:refer [FnSchema One]])]
    #?(:clj [schema.macros :refer [assert! compile-fn-validation? defrecord-schema if-bb if-cljs]])
    #?(:clj [com.ambrosebs.schema-incubator.poly.macros :as macros])
-   [schema.utils :as utils]
-   [schema.spec.core :as spec :include-macros true]
-   [schema.spec.leaf :as leaf])
+   [schema.utils :as utils])
   #?(:clj (:import [schema.core FnSchema One]))
   #?(:cljs (:require-macros [com.ambrosebs.schema-incubator.poly.macros :as macros]
                             [schema.macros :refer [assert! compile-fn-validation? defrecord-schema if-bb if-cljs]]

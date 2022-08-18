@@ -1,7 +1,7 @@
 (ns com.ambrosebs.schema-incubator.poly.check-test
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.test.check.generators :as gen]
-            [com.ambrosebs.schema-incubator.poly :as poly]
+            [com.ambrosebs.schema-incubator.poly :as poly :refer [=> all]]
             [com.ambrosebs.schema-incubator.poly.check :as sut]
             [schema-generators.generators :as sgen]
             [schema.core :as s]))
@@ -48,21 +48,41 @@
       [a :- (poly/=> X X :.. X)] a))
   )
 
-(deftest generator-test
-  (is (integer? ((gen/generate
-                   (sut/generator (s/=> s/Int s/Int)))
-                 1)))
-  (is (thrown? #?(:clj Exception :cljs js/Error)
-               ((gen/generate
-                  (sut/generator (s/=> s/Int s/Int)))
-                :foo))))
+;; partial
+(all [X :.. Y :.. Z]
+     (=> (=> Z Y :.. Y)
+         (=> Z X :.. X Y :.. Y)
+         X :.. X))
 
-;; TODO improve blame msg (should be 'something here, not arg0)
-(comment
-  ((gen/generate
-     (sut/generator (s/=> s/Int (s/named s/Int 'something))))
-   :foo)
-  ;=> Value does not match schema: [(named (named (not (integer? :foo)) something) arg0)]
-  (sut/generator s/Int)
-  (s/validate {:a s/Str} {:a 1})
-  )
+every-pred
+(all [X :.. Y]
+     (=> (=> s/Bool & [X])
+         (=> s/Any X)
+         & [(=> s/Any X)]
+         ))
+
+;; comp
+(all [X :.. Y0]
+     (=> (=> Y0 X :.. X)
+         (=> Y0 X :.. X)))
+(all [X :.. Y0 Y1 Z]
+     (=> (=> Y1 X :.. X)
+         (=> Y1 Y0)
+         (=> Y0 X :.. X)))
+(all [X :.. Y0 Y1 Y2 Z]
+     (=> (=> Y2 X :.. X)
+         (=> Y2 Y1)
+         (=> Y1 Y0)
+         (=> Y0 X :.. X)))
+(all [X :.. Y0 Y1 Y2 Y3 Z]
+     (=> (=> Y3 X :.. X)
+         (=> Y3 Y2)
+         (=> Y2 Y1)
+         (=> Y1 Y0)
+         (=> Y0 X :.. X)))
+
+#_
+(all [X :.. Y :- [:.. :min 1]]
+     (=> (=> (poly/app... [Y] (peek Y)) X :.. X)
+         (=> (poly/app... [Y] (second Y)) (poly/app... [Y] (first Y))) :.. [Y] (partition-all 2 Y 1)
+         (=> (poly/app... [Y] (first Y)) X :.. X)))

@@ -1876,7 +1876,7 @@
   (is (= '(all [T] (schema.core/->FnSchema T [[(schema.core/one T (quote x))]]))
          (s/explain (s/fn-schema poly-identity)))))
 
-(deftest inst-test
+(deftest instantiate-test
   (is (= (@#'poly/instantiate (poly/all [a] (poly/=> a))
                            s/Int)
          (poly/=> s/Int)))
@@ -1887,8 +1887,15 @@
                            s/Int)
          (poly/=> s/Int s/Int)))
   (is (= (@#'poly/instantiate (poly/all [a b] (poly/=> a b a b))
-                           s/Int s/Bool)
+                              s/Int s/Bool)
          (poly/=> s/Int s/Bool s/Int s/Bool)))
+  (is (= (@#'poly/instantiate (poly/all [a :.. b] (poly/=> b a :.. a))
+                              [s/Int s/Any] s/Bool)
+         (poly/=> s/Bool s/Int s/Any)))
+  #_ ;;TODO
+  (is (= (@#'poly/instantiate (poly/all [a :.. b :.. c] (poly/=> c a :.. a b :.. b))
+                              [s/Int s/Any] [s/Bool s/Any] s/Str)
+         (poly/=> s/Str s/Int s/Any s/Bool s/Any s/Str)))
   (is (= '(=> Int Int)
          (s/explain (@#'poly/instantiate (s/fn-schema poly-identity) s/Int))))
   (is (thrown-with-msg? Exception #"Wrong number of arguments"
@@ -1955,11 +1962,11 @@
      :poly-map-dot (poly/letfn [(:all [X Y :.. Z] poly-map-dot :- [Z] [f :- (poly/=> Z X Y :.. Y) xs :- [X] & yss :- [Y] :.. Y] (apply map f xs yss))]
                      poly-map-dot)
      :poly-map-dot-arities (poly/letfn [(:all [X Y Z S :.. T]
-                                       poly-map-dot-arities :- [T]
-                                       ([f :- (poly/=> T X) xs :- [X]] (map f xs))
-                                       ([f :- (poly/=> T X Y) xs :- [X] ys :- [Y]] (map f xs ys))
-                                       ([f :- (poly/=> T X Y Z) xs :- [X] ys :- [Y] zs :- [Z]] (map f xs ys zs))
-                                       ([f :- (poly/=> T X Y Z S :.. S) xs :- [X] ys :- [Y] zs :- [Z] & ss :- [S] :.. S] (apply map f xs ys zs ss)))]
+                                          poly-map-dot-arities :- [T]
+                                          ([f :- (poly/=> T X) xs :- [X]] (map f xs))
+                                          ([f :- (poly/=> T X Y) xs :- [X] ys :- [Y]] (map f xs ys))
+                                          ([f :- (poly/=> T X Y Z) xs :- [X] ys :- [Y] zs :- [Z]] (map f xs ys zs))
+                                          ([f :- (poly/=> T X Y Z S :.. S) xs :- [X] ys :- [Y] zs :- [Z] & ss :- [S] :.. S] (apply map f xs ys zs ss)))]
                              poly-map-dot-arities)}))
 
 
@@ -1978,6 +1985,7 @@
          s/Bool))
   (is (thrown? #?(:clj Error :cljs js/Error) (poly/return-schema s/Int))))
 
+;; idea: (poly/tuple A :.. A B :*)
 
 (deftest args-schema-test
   (let [s (poly/args-schema (s/=> s/Any s/Int s/Bool))]
