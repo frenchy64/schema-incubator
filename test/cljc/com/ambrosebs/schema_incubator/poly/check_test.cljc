@@ -83,6 +83,14 @@ every-pred
 
 #_
 (all [X :.. Y :- [:.. :min 1]]
-     (=> (=> (poly/app... [Y] (peek Y)) X :.. X)
-         (=> (poly/app... [Y] (second Y)) (poly/app... [Y] (first Y))) :.. [Y] (partition-all 2 Y 1)
-         (=> (poly/app... [Y] (first Y)) X :.. X)))
+     {:no-general-inst true}
+     (=> (=> (first Y) X :.. X)
+         (=> (first Y) (second Y)) :..app Y (partition-all 2 Y 1)
+         (=> (poly/...app Y (peek Y)) X :.. X)))
+
+#_
+(all [X :.. Y :- [:.. :min 1]]
+     {:no-general-inst true}
+     (=> (=> (first Y) X :.. X)
+         (=> (first Y) (second Y)) :..app Y (partition-all 2 Y 1)
+         (=> (poly/...app Y (peek Y)) X :.. X)))
