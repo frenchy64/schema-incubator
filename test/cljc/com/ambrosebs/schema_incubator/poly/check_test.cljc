@@ -4,7 +4,8 @@
             [com.ambrosebs.schema-incubator.poly :as poly :refer [=> all]]
             [com.ambrosebs.schema-incubator.poly.check :as sut]
             [schema-generators.generators :as sgen]
-            [schema.core :as s]))
+            [schema.core :as s]
+            [schema.utils :as utils]))
 
 (deftest check-test
   (testing "success"
@@ -122,10 +123,19 @@ every-pred
               (conj (s/one (=> poly/AnyFalse X) (gensym)))
               (into (mapv (fn [_] (s/one (=> s/Bool poly/Never) (gensym))) Z)))])))
 
+(deftest Never-test
+  (is (s/check poly/Never false)))
 
 (deftest every-pred-short-circuits-test
   (is (= '(=> (=> (eq false) Int) (=> (enum nil false) Int))
          (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [] []))))
   (is (= '(=> (=> (eq false) Int) (=> (pred AnyTrue) Int) (=> (enum nil false) Int) (=> Bool (pred Never)))
          (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [1] [2]))))
-  (is (:pass? (sut/check every-pred {:schema every-pred-short-circuits-schema}))))
+  (is (:pass? (sut/check every-pred {:schema every-pred-short-circuits-schema})))
+  (is (:pass? (sut/check (fn [& fs]
+                           (fn [& args]
+                             (doseq [f fs
+                                     arg args]
+                               (f arg))
+                             (apply (apply every-pred fs) args)))
+                         {:schema every-pred-short-circuits-schema}))))

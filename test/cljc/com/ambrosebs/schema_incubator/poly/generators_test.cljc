@@ -15,6 +15,17 @@
                   (sut/generator (s/=> s/Int s/Int)))
                 :foo))))
 
+(deftest Never-gen-test
+  (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                        #"Never cannot generate values"
+                        (gen/generate (sut/generator poly/Never)))))
+
+(deftest AnyTrue-gen-test
+  (is (gen/generate (sut/generator poly/AnyTrue))))
+
+(deftest AnyFalse-gen-test
+  (is (not (gen/generate (sut/generator poly/AnyFalse)))))
+
 ;; TODO improve blame msg (should be 'something here, not arg0)
 (comment
   ((gen/generate
