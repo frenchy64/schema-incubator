@@ -18,7 +18,10 @@
 (deftest Never-gen-test
   (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
                         #"Never cannot generate values"
-                        (gen/generate (sut/generator poly/Never)))))
+                        (gen/generate (sut/generator poly/Never))))
+  (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                        #"Value does not match schema: \[\(named \(not \(Never 1\)\) arg0\)\]"
+                        ((gen/generate (sut/generator (s/=> s/Any poly/Never))) 1))))
 
 (deftest AnyTrue-gen-test
   (is (gen/generate (sut/generator poly/AnyTrue))))
