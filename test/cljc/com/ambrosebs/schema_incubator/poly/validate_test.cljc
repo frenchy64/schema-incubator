@@ -2,15 +2,15 @@
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.test.check.generators :as gen]
             [com.ambrosebs.schema-incubator.poly :as poly :refer [=> all]]
-            [com.ambrosebs.schema-incubator.poly.check :as sut]
+            [com.ambrosebs.schema-incubator.poly.validate :as sut]
             [schema-generators.generators :as sgen]
             [schema.core :as s]
             [schema.utils :as utils]))
 
-(deftest check-test
+(deftest validate-test
   (testing "success"
     (let [atm (atom [])
-          res (sut/check
+          res (sut/validate
                 (poly/fn [a :- s/Int] (swap! atm conj a) a)
                 {:num-tests 2
                  :seed 1634677540521})]
@@ -18,7 +18,7 @@
              (dissoc res :time-elapsed-ms)))
       (is (= [-1N 0] @atm))))
   (testing "failure"
-    (let [res (sut/check
+    (let [res (sut/validate
                 (poly/fn foo :- s/Int [a])
                 {:num-tests 2
                  :seed 1634677540521})]
@@ -38,25 +38,25 @@
                  ex-data
                  (select-keys #{:type :schema :value})))))))
 
-(deftest poly-check-test
-  (is (:pass? (sut/check (poly/fn :all [X] _id :- X [a :- X] a))))
-  (is (false? (:pass? (sut/check (poly/fn :all [X] _not-id :- X [a :- X] 1)))))
-  (is (false? (:pass? (sut/check (poly/fn _not-id [a] 1)
+(deftest poly-validate-test
+  (is (:pass? (sut/validate (poly/fn :all [X] _id :- X [a :- X] a))))
+  (is (false? (:pass? (sut/validate (poly/fn :all [X] _not-id :- X [a :- X] 1)))))
+  (is (false? (:pass? (sut/validate (poly/fn _not-id [a] 1)
                                  {:schema (poly/all [X] (poly/=> X X))}))))
-  (is (:pass? (sut/check
+  (is (:pass? (sut/validate
                 (poly/fn :- s/Int
                   [a :- s/Int] a))))
-  (is (false? (:pass? (sut/check
+  (is (false? (:pass? (sut/validate
                         (poly/fn :- s/Int
                           [a :- s/Int] (str a))))))
-  (is (:pass? (sut/check
+  (is (:pass? (sut/validate
                 (poly/fn; :- (s/=> s/Int s/Int)
                   [a :- (s/=> s/Int s/Int)] a))))
-  (is (:pass? (sut/check
+  (is (:pass? (sut/validate
                 (poly/fn :- (poly/=> s/Int s/Int)
                   [a :- (poly/=> s/Int s/Int)] a))))
   #_ ;;TODO
-  (sut/check
+  (sut/validate
     (poly/fn :all [X :..] :- (poly/=> X X :.. X)
       [a :- (poly/=> X X :.. X)] a))
   )
@@ -136,20 +136,20 @@ every-pred
               (into (mapv (fn [_] (s/one (=> s/Bool poly/Never) (gensym))) Z)))])))
 
 (deftest Never-test
-  (is (s/check poly/Never false)))
+  (is (s/validate poly/Never false)))
 
 (deftest every-pred-short-circuits-test
   (is (= '(=> (=> (eq false) Int) (=> (enum nil false) Int))
          (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [] []))))
   (is (= '(=> (=> (eq false) Int) (=> (pred AnyTrue) Int) (=> (enum nil false) Int) (=> Bool (pred Never)))
          (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [1] [2]))))
-  (is (:pass? (sut/check every-pred {:schema every-pred-short-circuits-schema})))
+  (is (:pass? (sut/validate every-pred {:schema every-pred-short-circuits-schema})))
   ;; TODO FnSchema's don't generatively test while validating.
   #_
-  (is (not (:pass? (sut/check (fn [& fs]
-                                (fn [& args]
-                                  (doseq [f fs
-                                          arg args]
-                                    (f arg))
-                                  (apply (apply every-pred fs) args)))
-                              {:schema every-pred-short-circuits-schema})))))
+  (is (not (:pass? (sut/validate (fn [& fs]
+                                   (fn [& args]
+                                     (doseq [f fs
+                                             arg args]
+                                       (f arg))
+                                     (apply (apply every-pred fs) args)))
+                                 {:schema every-pred-short-circuits-schema})))))
