@@ -1,4 +1,6 @@
 (ns com.ambrosebs.schema-incubator.poly
+  "Defines the primitive representation of polymorphic schemas
+  along with providing syntax extensions for schema macros (via new macros)."
   ;schema.core
   ;; don't exclude def because it's not a var.
   (:refer-clojure :exclude [Keyword Symbol Inst atom defprotocol defrecord defn letfn defmethod fn MapEntry ->MapEntry])
@@ -15,9 +17,9 @@
 
 #?(:clj (set! *warn-on-reflection* true))
 
-(def Never (s/pred (cc/fn [_] false) 'Never))
-(def AnyTrue (s/pred boolean 'AnyTrue))
-(def AnyFalse (s/enum nil false))
+(defonce Never (s/pred (cc/fn [_] false) 'Never))
+(defonce AnyTrue (s/pred boolean 'AnyTrue))
+(defonce AnyFalse (s/enum nil false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Polymorphic Schemas

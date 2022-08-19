@@ -15,9 +15,9 @@
                    [com.ambrosebs.schema_incubator.poly PolySchema]))
   #?(:cljs (:require-macros [schema.macros :as macros])))
 
-(declare check generator* to-generative-fn-schema)
+(declare check ^:private generator* ^:private to-generative-fn-schema)
 
-(defn fn-schema-generator
+(defn- fn-schema-generator
   "Generator for s/=> schemas."
   [=>-schema generator*-params]
   (let [=>-schema (to-generative-fn-schema =>-schema generator*-params)
@@ -76,7 +76,7 @@
     wrappers :- sgen/GeneratorWrappers]
    (generator* schema (create-generator*-params leaf-generators wrappers))))
 
-(defrecord GenerativeFnSchemaSpec [fn-schema generator*-params]
+(defrecord ^:internal GenerativeFnSchemaSpec [fn-schema generator*-params]
   spec/CoreSpec
   (subschemas [this] []) ;;?
   (checker [this params]
@@ -99,7 +99,7 @@
              (meta this)))
 
 ;; same as FnSchema, except uses generative testing to validate
-(macros/defrecord-schema GenerativeFnSchema [fn-schema generator-params]
+(macros/defrecord-schema ^:internal GenerativeFnSchema [fn-schema generator-params]
   s/Schema
   (spec [this] (->GenerativeFnSchemaSpec this generator-params))
   (explain [this] (s/explain fn-schema))
@@ -114,12 +114,22 @@
   (-walk [this inner outer]
     (outer (walk-fn-schema this inner))))
 
-(defn to-generative-fn-schema [s generator*-params]
+(defn- to-generative-fn-schema [s generator*-params]
   (walk/postwalk (fn [s]
                    (if (instance? FnSchema s)
                      (with-meta (->GenerativeFnSchema s generator*-params)
                                 (meta s))
-                     s))
+                     (if (instance? PolySchema s)
+                       (update s :inst->schema (fn [inst->schema]
+                                                 (let [;; don't double-wrap
+                                                       original-inst->schema (or (-> inst->schema meta ::original-inst->schema)
+                                                                                 inst->schema)]
+                                                   (with-meta
+                                                     (fn [& args]
+                                                       (-> (apply original-inst->schema args)
+                                                           (to-generative-fn-schema generator*-params)))
+                                                     {::original-inst->schema original-inst->schema}))))
+                       s)))
                  s))
 
 (defn check
@@ -152,8 +162,9 @@
                      (or (:num-tests opt) 100)
                      prop
                      (apply concat (dissoc opt :schema :num-tests :leaf-generators :wrappers))))
-         s (or (:schema opt)
-               (s/fn-schema f))]
+         s (some-> (or (:schema opt)
+                       (s/fn-schema f))
+                   to-generative-fn-schema)]
      (cond
        (instance? PolySchema s)
        (qc (prop'/for-all
@@ -165,7 +176,7 @@
                                     :.. (gen/one-of [(gen/vector (gen/return s/Any))
                                                      (gen/vector (gen/return s/Any))])))
                                 (:parsed-decl s)))
-              :let [s (to-generative-fn-schema (apply poly/instantiate s insts))]
+              :let [s (apply poly/instantiate s insts)]
               args (generator (poly/args-schema s))
               :let [ret-s (poly/return-schema s)
                     ret-checker (s/checker ret-s)]]
@@ -176,10 +187,8 @@
                                   {:schema ret-s :value ret :error error}))
                  true))))
 
-       (or (instance? GenerativeFnSchema s)
-           (instance? FnSchema s))
-       (let [s (to-generative-fn-schema s)
-             ret-s (poly/return-schema s)
+       (instance? GenerativeFnSchema s)
+       (let [ret-s (poly/return-schema s)
              ret-checker (s/checker ret-s)]
          (qc (prop'/for-all
                [args (generator (poly/args-schema s))]
