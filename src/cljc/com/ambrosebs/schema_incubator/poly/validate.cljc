@@ -1,4 +1,4 @@
-(ns com.ambrosebs.schema-incubator.poly.check
+(ns com.ambrosebs.schema-incubator.poly.validate
   "Test functions against function schemas."
   (:require [clojure.test.check :refer [quick-check]]
             [clojure.test.check.generators :as gen]
@@ -132,7 +132,7 @@
                        s)))
                  s))
 
-(defn check
+(defn validate
   "Generatively test a function `f` against a FnSchema or PolySchema.
 
   If `f` is a qualified symbol, resolves it before checking with improved
@@ -141,17 +141,17 @@
   Takes the same options as quick-check, additionally:
   - :num-tests   number of iterations.
                  default: 100
-  - :schema      the schema to check against.
+  - :schema      the schema to validate against.
                  default: (s/fn-schema f)
   - :generator-args  a vector of arguments you would normally pass to `schema-generators.generators/generator`.
   Returns the same output as `quick-check`.
   
   eg., (s/defn foo :- s/Int [a :- s/Int] a)
-       (check foo)
-       (check foo {:schema (s/=> s/Num s/Num)
-                   :num-tests 100
-                   :generator-args [my-leaf-generators my-wrappers]})"
-  ([f] (check f {}))
+       (validate foo)
+       (validate foo {:schema (s/=> s/Num s/Num)
+                      :num-tests 100
+                      :generator-args [my-leaf-generators my-wrappers]})"
+  ([f] (validate f {}))
   ([f opt]
    (let [generator*-params (or (:generator*-params opt)
                                (apply create-generator*-params (:generator-args opt)))

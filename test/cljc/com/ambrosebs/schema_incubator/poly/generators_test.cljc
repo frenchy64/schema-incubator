@@ -3,7 +3,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.test.check.generators :as gen]
             [com.ambrosebs.schema-incubator.poly :as poly :refer [=> all]]
-            [com.ambrosebs.schema-incubator.poly.check :as sut]
+            [com.ambrosebs.schema-incubator.poly.validate :as sut]
             [schema-generators.generators :as sgen]
             [schema.core :as s]))
 

@@ -1,4 +1,4 @@
-(ns com.ambrosebs.schema-incubator.poly.check-test
+(ns com.ambrosebs.schema-incubator.poly.validate-test
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.test.check.generators :as gen]
             [com.ambrosebs.schema-incubator.poly :as poly :refer [=> all]]
