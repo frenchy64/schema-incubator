@@ -17,18 +17,6 @@
 
 (declare check ^:private generator* ^:private to-generative-fn-schema)
 
-(defn- fn-schema-generator
-  "Generator for s/=> schemas."
-  [=>-schema generator*-params]
-  (let [=>-schema (to-generative-fn-schema =>-schema generator*-params)
-        args-validator (s/validator (poly/args-schema =>-schema))
-        return-gen (generator* (poly/return-schema =>-schema) generator*-params)]
-    (gen/sized
-      (fn [size]
-        (gen/return
-          (fn [& args]
-            (args-validator (vec args))
-            (gen/generate return-gen size)))))))
 
 (def +simple-leaf-generators+
   {poly/Never (gen/such-that (fn [_] (throw (ex-info "Never cannot generate values" {})))
@@ -76,6 +64,8 @@
     wrappers :- sgen/GeneratorWrappers]
    (generator* schema (create-generator*-params leaf-generators wrappers))))
 
+(declare ^:private fn-schema-generator)
+
 (defrecord ^:internal GenerativeFnSchemaSpec [fn-schema generator*-params]
   spec/CoreSpec
   (subschemas [this] []) ;;?
@@ -109,6 +99,19 @@
     (outer (with-meta (->GenerativeFnSchema (walk-fn-schema fn-schema inner) generator-params)
                       (meta this)))))
 
+(defn- fn-schema-generator
+  "Generator for s/=> schemas."
+  [=>-schema generator*-params]
+  {:pre [(instance? GenerativeFnSchema =>-schema)]}
+  (let [args-validator (s/validator (poly/args-schema =>-schema))
+        return-gen (generator* (poly/return-schema =>-schema) generator*-params)]
+    (gen/sized
+      (fn [size]
+        (gen/return
+          (fn [& args]
+            (args-validator (vec args))
+            (gen/generate return-gen size)))))))
+
 (extend-protocol walk/WalkableSchema
   FnSchema
   (-walk [this inner outer]
@@ -134,8 +137,6 @@
 
 (defn quick-validate
   "Validate a value against a schema via generative testing.
-  
-  Has special support for schema-annotated functions to automated
 
   Takes the same options as quick-check, additionally:
   - :num-tests   number of iterations.
@@ -148,8 +149,8 @@
   eg., (s/defn foo :- s/Int [a :- s/Int] a)
        (quick-validate foo)
        (quick-validate foo {:schema (s/=> s/Num s/Num)
-                      :num-tests 100
-                      :generator-args [my-leaf-generators my-wrappers]})"
+                            :num-tests 100
+                            :generator-args [my-leaf-generators my-wrappers]})"
   ([f] (quick-validate f {}))
   ([f opt]
    (let [generator*-params (or (:generator*-params opt)
@@ -206,7 +207,7 @@
   ; :smallest [[0]],
   ; ...
   ; :cause "Output of fn21868 does not match schema: \n\n\t   (not (integer? nil))  \n\n"
-  (check
+  (quick-validate
     @(s/defn a :- s/Int [a])
     {:num-tests 2})
   ; :message "Output of a does not match schema: \n\n\t   (not (integer? nil))  \n\n"
