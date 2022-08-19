@@ -202,6 +202,7 @@
                      (macros/error! (utils/format* "Output of %s does not match schema: %s" (utils/fn-name f) (pr-str error))
                                     {:schema ret-s :value ret :error error}))
                    true)))))
+       ;:else (s/validate s f)  ; kind of makes sense, except we need to figure out how to a return quick-check style summary.
        :else (throw (ex-info (str "Invalid schema to exercise: " (pr-str s))
                              {}))))))
 
