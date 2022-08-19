@@ -24,12 +24,12 @@
 
 (clojure.core/defrecord ^:no-doc AnyDotted [schema])
 
-(declare ^:private inst-most-general)
-
-(defrecord-schema PolySchema [decl parsed-decl schema-form inst->schema]
+(defrecord-schema PolySchema [decl parsed-decl schema-form inst->schema most-general]
   s/Schema
-  (spec [this] (s/spec (inst-most-general this)))
-  (explain [this] (list 'all decl schema-form)))
+  (spec [this] (s/spec @most-general))
+  (explain [this] (list 'all decl schema-form))
+  s/HasPrecondition
+  (precondition [this] (s/precondition @most-general)))
 
 (cc/defn instantiate
   "Instantiate a polymorphic schema with schemas."
@@ -54,7 +54,7 @@
                             {}))))
         (:parsed-decl =>-schema)))
 
-(defn- inst-most-general [=>-schema]
+(cc/defn inst-most-general [=>-schema]
   {:pre [(instance? PolySchema =>-schema)]}
   (apply instantiate =>-schema (most-general-insts =>-schema)))
  
@@ -75,11 +75,14 @@
   [decl schema]
   {:pre [(vector? decl)]}
   (let [parsed-decl (macros/parse-poly-binder decl)]
-    `(->PolySchema
-       '~decl
-       '~parsed-decl
-       '~schema
-       (clojure.core/fn ~(mapv first parsed-decl) ~schema)))))
+    `(let [this# (volatile! nil)]
+       (vreset! this# (map->PolySchema
+                       {:decl '~decl
+                        :parsed-decl '~parsed-decl
+                        :schema-form '~schema
+                        :inst->schema (cc/fn ~(mapv first parsed-decl) ~schema)
+                        :most-general (delay (inst-most-general @this#))}))
+       @this#))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -121,13 +124,14 @@
   [output-schema & arg-schemas]
   `(=>* ~output-schema ~(vec arg-schemas))))
 
-;; works for both GenerativeFnSchema and FnSchema.
-(defn- any-fn-schema? [s] (boolean (:output-schema s)))
+;; workaround dependency cycle
+(defn- generative-fn-schema? [s]
+  (boolean (:fn-schema s)))
 
 (defn- split-arities
   "Internal"
   [=>-schema]
-  {:pre [(any-fn-schema? =>-schema)]}
+  {:pre [(instance? FnSchema =>-schema)]}
   (let [;; sorted by arity size
         input-schemas (vec (:input-schemas =>-schema))
         _ (assert (seq input-schemas) (pr-str =>-schema))
@@ -147,12 +151,14 @@
 ;;  ;=> Value does not match schema: [(named (named (not (integer? :foo)) something) arg0)]
 (cc/defn args-schema
   "Returns the schema of the arguments to the => schema, or =>/all
-  instantiated with s/Any."
+  instantiated with most general arguments."
   [=>-schema]
   {:post [(satisfies? s/Schema %)]}
   (let [=>-schema (cond-> =>-schema
-                    (instance? PolySchema =>-schema) inst-most-general)
-        _ (assert (any-fn-schema? =>-schema) (pr-str =>-schema))
+                    (instance? PolySchema =>-schema) (-> :most-general deref))
+        =>-schema (cond-> =>-schema
+                    (generative-fn-schema? =>-schema) :fn-schema)
+        _ (assert (instance? FnSchema =>-schema) (pr-str =>-schema))
         {:keys [fixed-input-schemas variable-input-schema]} 
         (split-arities =>-schema)]
     (apply s/conditional
@@ -167,12 +173,14 @@
 
 (cc/defn return-schema
   "Returns the schema of the return value of the => schema,
-  or =>/all instantiated with s/Any."
+  or =>/all instantiated with most general arguments."
   [=>-schema]
-  ;{:post [(satisfies? s/Schema %)]}
+  {:post [(satisfies? s/Schema %)]}
   (let [=>-schema (cond-> =>-schema
-                    (instance? PolySchema =>-schema) inst-most-general)
-        _ (assert (any-fn-schema? =>-schema))]
+                    (instance? PolySchema =>-schema) (-> :most-general deref))
+        =>-schema (cond-> =>-schema
+                    (generative-fn-schema? =>-schema) :fn-schema)
+        _ (assert (instance? FnSchema =>-schema))]
     (:output-schema =>-schema)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

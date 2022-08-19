@@ -3,7 +3,7 @@
   (:require [clojure.test.check :refer [quick-check]]
             [clojure.test.check.generators :as gen]
             [com.ambrosebs.schema-incubator.poly :as poly #?@(:cljs [:refer [PolySchema]])]
-            [com.ambrosebs.schema-incubator.poly.generators :refer [generator]]
+            [com.ambrosebs.schema-incubator.poly.generators :refer [fn-schema-generator generator]]
             [com.gfredericks.test.chuck.properties :as prop']
             [schema-generators.generators :as sgen]
             [schema.spec.leaf :as leaf]
@@ -18,34 +18,48 @@
 
 (declare check)
 
+(defrecord GenerativeFnSchemaSpec [fn-schema generator-args]
+  spec/CoreSpec
+  (subschemas [this] []) ;;?
+  (checker [this params]
+    (fn [x]
+      (let [{:keys [passed?] :as res} (check x {:num-tests 30
+                                                :schema fn-schema
+                                                :generator-args generator-args})]
+        (if passed?
+          x
+          (utils/error [x])))))
+  s/HasPrecondition
+  (precondition [this] ifn?)
+  sgen/CompositeGenerator
+  (composite-generator [this params] (fn-schema-generator fn-schema params)))
+
+(defn- walk-fn-schema [this inner]
+  (with-meta (s/->FnSchema
+               (inner (:output-schema this))
+               (mapv inner (:input-schemas this)))
+             (meta this)))
+
 ;; same as FnSchema, except uses generative testing to validate
-(macros/defrecord-schema GenerativeFnSchema [output-schema input-schemas] ;; input-schemas sorted by arity
+(macros/defrecord-schema GenerativeFnSchema [fn-schema generator-args]
   s/Schema
-  (spec [this] (leaf/leaf-spec (spec/simple-precondition this #(check % {:schema this}))))
-  (explain [this]
-    (if (> (count input-schemas) 1)
-      (list* '=>* (s/explain output-schema) (map s/explain-input-schema input-schemas))
-      (list* '=> (s/explain output-schema) (s/explain-input-schema (first input-schemas)))))
+  (spec [this] (->GenerativeFnSchemaSpec this generator-args))
+  (explain [this] (s/explain fn-schema))
 
   walk/WalkableSchema
   (-walk [this inner outer]
-    (outer (with-meta (->GenerativeFnSchema
-                        (inner (:output-schema this))
-                        (mapv inner (:input-schemas this)))
+    (outer (with-meta (->GenerativeFnSchema (walk-fn-schema fn-schema inner) generator-args)
                       (meta this)))))
 
 (extend-protocol walk/WalkableSchema
   FnSchema
   (-walk [this inner outer]
-    (outer (with-meta (s/make-fn-schema
-                        (inner (:output-schema this))
-                        (mapv inner (:input-schemas this)))
-                      (meta this)))))
+    (outer (walk-fn-schema this inner))))
 
-(defn to-generative-fn-schema [s]
+(defn to-generative-fn-schema [s generator-args]
   (walk/postwalk (fn [s]
                    (if (instance? FnSchema s)
-                     (with-meta (->GenerativeFnSchema (:output-schema s) (:input-schemas s))
+                     (with-meta (->GenerativeFnSchema s generator-args)
                                 (meta s))
                      s))
                  s))
@@ -68,6 +82,7 @@
   ([f] (check f {}))
   ([f opt]
    (let [generator (fn [s] (apply generator s (:generator-args opt)))
+         to-generative-fn-schema (fn [s] (to-generative-fn-schema s (:generator-args opt)))
          qc (fn [prop]
               (apply quick-check
                      (or (:num-tests opt) 100)
@@ -92,9 +107,9 @@
                     ret-checker (s/checker ret-s)]]
              (let [ret (apply f args)]
                (if-some [reason (ret-checker ret)]
-                 (let [{:keys [error]} (macros/validation-error ret-s ret (str (utils/fn-name ret)) reason)]
-                   (macros/error! (utils/format* "Output of %s does not match schema: %s" f (pr-str error))
-                                  {:schema ret-s :value ret :error error}) )
+                 (let [{:keys [error]} (macros/validation-error ret-s ret (str (utils/value-name ret)) reason)]
+                   (macros/error! (utils/format* "Output of %s does not match schema: %s" (utils/fn-name f) (pr-str error))
+                                  {:schema ret-s :value ret :error error}))
                  true))))
 
        (or (instance? GenerativeFnSchema s)
@@ -106,9 +121,9 @@
                [args (generator (poly/args-schema s))]
                (let [ret (apply f args)]
                  (if-some [reason (ret-checker ret)]
-                   (let [{:keys [error]} (macros/validation-error ret-s ret (str (utils/fn-name ret)) reason)]
-                     (macros/error! (utils/format* "Output of %s does not match schema: %s" f (pr-str error))
-                                    {:schema ret-s :value ret :error error}) )
+                   (let [{:keys [error]} (macros/validation-error ret-s ret (str (utils/value-name ret)) reason)]
+                     (macros/error! (utils/format* "Output of %s does not match schema: %s" (utils/fn-name f) (pr-str error))
+                                    {:schema ret-s :value ret :error error}))
                    true)))))
        :else (throw (ex-info (str "Invalid schema to exercise: " (pr-str s))
                              {}))))))

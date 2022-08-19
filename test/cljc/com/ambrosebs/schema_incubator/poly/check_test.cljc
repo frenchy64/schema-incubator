@@ -39,10 +39,16 @@
                  (select-keys #{:type :schema :value})))))))
 
 (deftest poly-check-test
-  (is (:pass? (sut/check (poly/fn :all [X] :- X [a :- X] a))))
-  (is (not (:pass? (sut/check (poly/fn :all [X] :- X [a :- X] 1)))))
-  (is (not (:pass? (sut/check (poly/fn [a] 1)
-                              {:schema (poly/all [X] (poly/=> X X))}))))
+  (is (:pass? (sut/check (poly/fn :all [X] _id :- X [a :- X] a))))
+  (is (false? (:pass? (sut/check (poly/fn :all [X] _not-id :- X [a :- X] 1)))))
+  (is (false? (:pass? (sut/check (poly/fn _not-id [a] 1)
+                                 {:schema (poly/all [X] (poly/=> X X))}))))
+  (is (:pass? (sut/check
+                (poly/fn; :- (s/=> s/Int s/Int)
+                  [a :- (s/=> s/Int s/Int)] a))))
+  (is (:pass? (sut/check
+                (poly/fn :- (poly/=> s/Int s/Int)
+                  [a :- (poly/=> s/Int s/Int)] a))))
   #_ ;;TODO
   (sut/check
     (poly/fn :all [X :..] :- (poly/=> X X :.. X)
@@ -133,6 +139,7 @@ every-pred
          (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [1] [2]))))
   (is (:pass? (sut/check every-pred {:schema every-pred-short-circuits-schema})))
   ;; TODO FnSchema's don't generatively test while validating.
+  #_
   (is (not (:pass? (sut/check (fn [& fs]
                                 (fn [& args]
                                   (doseq [f fs

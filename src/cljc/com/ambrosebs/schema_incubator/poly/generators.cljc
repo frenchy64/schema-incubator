@@ -13,7 +13,7 @@
 
 (declare generator)
 
-(defn- fn-schema-generator
+(defn fn-schema-generator
   "Generator for s/=> schemas."
   [=>-schema params]
   (let [args-validator (s/validator (poly/args-schema =>-schema))
@@ -37,10 +37,11 @@
    (sgen/default-leaf-generators
      +simple-leaf-generators+)))
 
-
 (s/defn generator
   "Just like schema-generators.generators/generator, but also
-  generates FnSchema's."
+  generates FnSchema's. Needed because we cannot change the s/spec for FnSchema,
+  to hook into sgen/composite-generator and leaf-generators/wrappers do not
+  pass params."
   ([schema] (generator schema {}))
   ([schema leaf-generators] (generator schema leaf-generators {}))
   ([schema :- sgen/Schema
@@ -54,6 +55,6 @@
                     (or (leaf-generators s)
                         (sgen/composite-generator (s/spec s) params)))))]
      (gen/fmap
-       (s/validator schema)
+       identity ;(s/validator schema) ;; do we need to convert FnSchema to GenerativeFnSchema?
        (gen schema {:subschema-generator gen :cache #?(:clj (java.util.IdentityHashMap.)
                                                        :cljs (atom {}))})))))
