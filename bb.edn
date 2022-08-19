@@ -2,7 +2,8 @@
  :deps {org.clojure/test.check {:mvn/version "1.1.1"}
         prismatic/schema-generators {:mvn/version "0.1.5"}
         com.gfredericks/test.chuck {:mvn/version "0.2.13"}
-        prismatic/schema {:mvn/version "1.4.0"}}
+        prismatic/schema {:mvn/version "1.4.0"}
+        metosin/schema-tools {:mvn/version "0.12.3"}}
  :tasks
  {:requires ([babashka.fs :as fs]
              [babashka.process :as p :refer [process]]

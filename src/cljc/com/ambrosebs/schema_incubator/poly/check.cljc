@@ -6,12 +6,49 @@
             [com.ambrosebs.schema-incubator.poly.generators :refer [generator]]
             [com.gfredericks.test.chuck.properties :as prop']
             [schema-generators.generators :as sgen]
+            [schema.spec.leaf :as leaf]
+            [schema.spec.core :as spec]
             [schema.core :as s #?@(:cljs [:refer [FnSchema]])]
             #?(:clj [schema.macros :as macros])
+            [schema-tools.walk :as walk]
             [schema.utils :as utils])
   #?(:clj (:import [schema.core FnSchema]
                    [com.ambrosebs.schema_incubator.poly PolySchema]))
   #?(:cljs (:require-macros [schema.macros :as macros])))
+
+(declare check)
+
+;; same as FnSchema, except uses generative testing to validate
+(macros/defrecord-schema GenerativeFnSchema [output-schema input-schemas] ;; input-schemas sorted by arity
+  s/Schema
+  (spec [this] (leaf/leaf-spec (spec/simple-precondition this #(check % {:schema this}))))
+  (explain [this]
+    (if (> (count input-schemas) 1)
+      (list* '=>* (s/explain output-schema) (map s/explain-input-schema input-schemas))
+      (list* '=> (s/explain output-schema) (s/explain-input-schema (first input-schemas)))))
+
+  walk/WalkableSchema
+  (-walk [this inner outer]
+    (outer (with-meta (->GenerativeFnSchema
+                        (inner (:output-schema this))
+                        (mapv inner (:input-schemas this)))
+                      (meta this)))))
+
+(extend-protocol walk/WalkableSchema
+  FnSchema
+  (-walk [this inner outer]
+    (outer (with-meta (s/make-fn-schema
+                        (inner (:output-schema this))
+                        (mapv inner (:input-schemas this)))
+                      (meta this)))))
+
+(defn to-generative-fn-schema [s]
+  (walk/postwalk (fn [s]
+                   (if (instance? FnSchema s)
+                     (with-meta (->GenerativeFnSchema (:output-schema s) (:input-schemas s))
+                                (meta s))
+                     s))
+                 s))
 
 (defn check
   "Generatively test a function `f` against a FnSchema or PolySchema.
@@ -49,7 +86,7 @@
                                     :.. (gen/one-of [(gen/vector (gen/return s/Any))
                                                      (gen/vector (gen/return s/Any))])))
                                 (:parsed-decl s)))
-              :let [s (apply poly/instantiate s insts)]
+              :let [s (to-generative-fn-schema (apply poly/instantiate s insts))]
               args (generator (poly/args-schema s))
               :let [ret-s (poly/return-schema s)
                     ret-checker (s/checker ret-s)]]
@@ -60,8 +97,10 @@
                                   {:schema ret-s :value ret :error error}) )
                  true))))
 
-       (instance? FnSchema s)
-       (let [ret-s (poly/return-schema s)
+       (or (instance? GenerativeFnSchema s)
+           (instance? FnSchema s))
+       (let [s (to-generative-fn-schema s)
+             ret-s (poly/return-schema s)
              ret-checker (s/checker ret-s)]
          (qc (prop'/for-all
                [args (generator (poly/args-schema s))]

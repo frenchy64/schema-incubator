@@ -121,10 +121,13 @@
   [output-schema & arg-schemas]
   `(=>* ~output-schema ~(vec arg-schemas))))
 
+;; works for both GenerativeFnSchema and FnSchema.
+(defn- any-fn-schema? [s] (boolean (:output-schema s)))
+
 (defn- split-arities
   "Internal"
   [=>-schema]
-  {:pre [(instance? FnSchema =>-schema)]}
+  {:pre [(any-fn-schema? =>-schema)]}
   (let [;; sorted by arity size
         input-schemas (vec (:input-schemas =>-schema))
         _ (assert (seq input-schemas) (pr-str =>-schema))
@@ -149,7 +152,7 @@
   {:post [(satisfies? s/Schema %)]}
   (let [=>-schema (cond-> =>-schema
                     (instance? PolySchema =>-schema) inst-most-general)
-        _ (assert (instance? FnSchema =>-schema) (pr-str =>-schema))
+        _ (assert (any-fn-schema? =>-schema) (pr-str =>-schema))
         {:keys [fixed-input-schemas variable-input-schema]} 
         (split-arities =>-schema)]
     (apply s/conditional
@@ -169,7 +172,7 @@
   ;{:post [(satisfies? s/Schema %)]}
   (let [=>-schema (cond-> =>-schema
                     (instance? PolySchema =>-schema) inst-most-general)
-        _ (assert (instance? FnSchema =>-schema))]
+        _ (assert (any-fn-schema? =>-schema))]
     (:output-schema =>-schema)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

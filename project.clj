@@ -12,7 +12,8 @@
                                   [org.clojure/tools.nrepl "0.2.5"]
                                   [org.clojure/test.check "1.1.1"]
                                   [com.gfredericks/test.chuck "0.2.13"]
-                                  [potemkin "0.4.1"]]
+                                  [potemkin "0.4.1"]
+                                  [metosin/schema-tools "0.12.3"]]
                    :eastwood {:exclude-namespaces []
                               :exclude-linters [:def-in-def :local-shadows-var :constant-test :suspicious-expression :deprecations
                                                 :unused-meta-on-macro :wrong-tag :unused-ret-vals]}

@@ -131,12 +131,12 @@ every-pred
          (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [] []))))
   (is (= '(=> (=> (eq false) Int) (=> (pred AnyTrue) Int) (=> (enum nil false) Int) (=> Bool (pred Never)))
          (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [1] [2]))))
-  ()
   (is (:pass? (sut/check every-pred {:schema every-pred-short-circuits-schema})))
-  (is (:pass? (sut/check (fn [& fs]
-                           (fn [& args]
-                             (doseq [f fs
-                                     arg args]
-                               (f arg))
-                             (apply (apply every-pred fs) args)))
-                         {:schema every-pred-short-circuits-schema}))))
+  ;; TODO FnSchema's don't generatively test while validating.
+  (is (not (:pass? (sut/check (fn [& fs]
+                                (fn [& args]
+                                  (doseq [f fs
+                                          arg args]
+                                    (f arg))
+                                  (apply (apply every-pred fs) args)))
+                              {:schema every-pred-short-circuits-schema})))))
