@@ -72,7 +72,7 @@
     (fn [x]
       (let [{:keys [passed?] :as res} (quick-validate x {:num-tests 30
                                                          :schema fn-schema
-                                                         :generator*-params generator*-params})]
+                                                         ::generator*-params generator*-params})]
         (if passed?
           x
           (utils/error [x])))))
@@ -101,7 +101,7 @@
 (defn- fn-schema-generator
   "Generator for s/=> schemas."
   [=>-schema generator*-params]
-  {:pre [(instance? GenerativeFnSchema =>-schema)]}
+  {:pre [(instance? FnSchema =>-schema)]}
   (let [args-validator (s/validator (poly/args-schema =>-schema))
         return-gen (generator* (poly/return-schema =>-schema) generator*-params)]
     (gen/sized
@@ -152,9 +152,12 @@
                             :generator-args [my-leaf-generators my-wrappers]})"
   ([f] (quick-validate f {}))
   ([f opt]
-   (let [generator*-params (or (:generator*-params opt)
+   (let [generator*-params (or (::generator*-params opt) ;; reuse params in nested validate->generate->validate->generate...
                                (apply create-generator*-params (:generator-args opt)))
          generator (fn [s] (generator* s generator*-params))
+         ;; when =>'s are nested, the inner ones will be checked via quick-validate (via fn-schema-generator -> poly/args-schema -> s/validator).
+         ;; we need to stash the :generator*-params in that case so can be used later---we do that by
+         ;; wrapping FnSchema with GenerativeFnSchema.
          to-generative-fn-schema (fn [s] (to-generative-fn-schema s generator*-params))
          qc (fn [prop]
               (apply quick-check
