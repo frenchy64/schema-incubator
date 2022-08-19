@@ -132,11 +132,10 @@
                        s)))
                  s))
 
-(defn validate
+(defn quick-validate
   "Validate a value against a schema via generative testing.
   
-  Has special support for schema-annotated functions to automatically
-  infer the schema.
+  Has special support for schema-annotated functions to automated
 
   Takes the same options as quick-check, additionally:
   - :num-tests   number of iterations.
@@ -147,11 +146,11 @@
   Returns the same output as `quick-check`.
   
   eg., (s/defn foo :- s/Int [a :- s/Int] a)
-       (validate foo)
-       (validate foo {:schema (s/=> s/Num s/Num)
+       (quick-validate foo)
+       (quick-validate foo {:schema (s/=> s/Num s/Num)
                       :num-tests 100
                       :generator-args [my-leaf-generators my-wrappers]})"
-  ([f] (validate f {}))
+  ([f] (quick-validate f {}))
   ([f opt]
    (let [generator*-params (or (:generator*-params opt)
                                (apply create-generator*-params (:generator-args opt)))

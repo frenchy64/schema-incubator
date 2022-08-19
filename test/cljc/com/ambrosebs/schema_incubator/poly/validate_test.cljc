@@ -49,7 +49,7 @@
 (deftest validate-test
   (testing "success"
     (let [atm (atom [])
-          res (sut/validate
+          res (sut/quick-validate
                 (poly/fn [a :- s/Int] (swap! atm conj a) a)
                 {:num-tests 2
                  :seed 1634677540521})]
@@ -57,7 +57,7 @@
              (dissoc res :time-elapsed-ms)))
       (is (= [-1N 0] @atm))))
   (testing "failure"
-    (let [res (sut/validate
+    (let [res (sut/quick-validate
                 (poly/fn foo :- s/Int [a])
                 {:num-tests 2
                  :seed 1634677540521})]
@@ -78,24 +78,24 @@
                  (select-keys #{:type :schema :value})))))))
 
 (deftest poly-validate-test
-  (is (:pass? (sut/validate (poly/fn :all [X] _id :- X [a :- X] a))))
-  (is (false? (:pass? (sut/validate (poly/fn :all [X] _not-id :- X [a :- X] 1)))))
-  (is (false? (:pass? (sut/validate (poly/fn _not-id [a] 1)
+  (is (:pass? (sut/quick-validate (poly/fn :all [X] _id :- X [a :- X] a))))
+  (is (false? (:pass? (sut/quick-validate (poly/fn :all [X] _not-id :- X [a :- X] 1)))))
+  (is (false? (:pass? (sut/quick-validate (poly/fn _not-id [a] 1)
                                  {:schema (poly/all [X] (poly/=> X X))}))))
-  (is (:pass? (sut/validate
+  (is (:pass? (sut/quick-validate
                 (poly/fn :- s/Int
                   [a :- s/Int] a))))
-  (is (false? (:pass? (sut/validate
+  (is (false? (:pass? (sut/quick-validate
                         (poly/fn :- s/Int
                           [a :- s/Int] (str a))))))
-  (is (:pass? (sut/validate
+  (is (:pass? (sut/quick-validate
                 (poly/fn; :- (s/=> s/Int s/Int)
                   [a :- (s/=> s/Int s/Int)] a))))
-  (is (:pass? (sut/validate
+  (is (:pass? (sut/quick-validate
                 (poly/fn :- (poly/=> s/Int s/Int)
                   [a :- (poly/=> s/Int s/Int)] a))))
   #_ ;;TODO
-  (sut/validate
+  (sut/quick-validate
     (poly/fn :all [X :..] :- (poly/=> X X :.. X)
       [a :- (poly/=> X X :.. X)] a))
   )
@@ -182,13 +182,13 @@ every-pred
          (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [] []))))
   (is (= '(=> (=> (eq false) Int) (=> (pred AnyTrue) Int) (=> (enum nil false) Int) (=> Bool (pred Never)))
          (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [1] [2]))))
-  (is (:pass? (sut/validate every-pred {:schema every-pred-short-circuits-schema})))
+  (is (:pass? (sut/quick-validate every-pred {:schema every-pred-short-circuits-schema})))
   ;; TODO FnSchema's don't generatively test while validating.
   #_
-  (is (not (:pass? (sut/validate (fn [& fs]
-                                   (fn [& args]
-                                     (doseq [f fs
-                                             arg args]
-                                       (f arg))
-                                     (apply (apply every-pred fs) args)))
-                                 {:schema every-pred-short-circuits-schema})))))
+  (is (not (:pass? (sut/quick-validate (fn [& fs]
+                                         (fn [& args]
+                                           (doseq [f fs
+                                                   arg args]
+                                             (f arg))
+                                           (apply (apply every-pred fs) args)))
+                                       {:schema every-pred-short-circuits-schema})))))
