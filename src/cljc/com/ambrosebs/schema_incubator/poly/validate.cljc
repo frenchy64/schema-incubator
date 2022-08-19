@@ -1,5 +1,5 @@
 (ns com.ambrosebs.schema-incubator.poly.validate
-  "Test functions against function schemas."
+  "Schema validation using generative testing."
   (:require [clojure.test.check :refer [quick-check]]
             [clojure.test.check.generators :as gen]
             [com.ambrosebs.schema-incubator.poly :as poly #?@(:cljs [:refer [PolySchema]])]
@@ -133,11 +133,11 @@
                  s))
 
 (defn validate
-  "Generatively test a function `f` against a FnSchema or PolySchema.
-
-  If `f` is a qualified symbol, resolves it before checking with improved
-  error messages.
+  "Validate a value against a schema via generative testing.
   
+  Has special support for schema-annotated functions to automatically
+  infer the schema.
+
   Takes the same options as quick-check, additionally:
   - :num-tests   number of iterations.
                  default: 100
