@@ -155,7 +155,8 @@
    (let [generator*-params (or (::generator*-params opt) ;; reuse params in nested validate->generate->validate->generate...
                                (apply create-generator*-params (:generator-args opt)))
          generator (fn [s] (generator* s generator*-params))
-         ;; when =>'s are nested, the inner ones will be checked via quick-validate (via fn-schema-generator -> poly/args-schema -> s/validator).
+         ;; when =>'s are nested, the inner ones will be checked via quick-validate (via fn-schema-generator -> poly/args-schema -> s/validator,
+         ;; or generator* -> gen/fmap -> s/validator).
          ;; we need to stash the :generator*-params in that case so can be used later---we do that by
          ;; wrapping FnSchema with GenerativeFnSchema.
          to-generative-fn-schema (fn [s] (to-generative-fn-schema s generator*-params))
