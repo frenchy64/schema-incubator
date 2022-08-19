@@ -3,7 +3,6 @@
   (:require [clojure.test.check :refer [quick-check]]
             [clojure.test.check.generators :as gen]
             [com.ambrosebs.schema-incubator.poly :as poly #?@(:cljs [:refer [PolySchema]])]
-            [com.ambrosebs.schema-incubator.poly.generators :refer [fn-schema-generator generator]]
             [com.gfredericks.test.chuck.properties :as prop']
             [schema-generators.generators :as sgen]
             [schema.spec.leaf :as leaf]
@@ -16,7 +15,54 @@
                    [com.ambrosebs.schema_incubator.poly PolySchema]))
   #?(:cljs (:require-macros [schema.macros :as macros])))
 
-(declare check)
+(declare check generator to-generative-fn-schema)
+
+(defn fn-schema-generator
+  "Generator for s/=> schemas."
+  [=>-schema params]
+  (let [=>-schema (to-generative-fn-schema =>-schema params)
+        args-validator (s/validator (poly/args-schema =>-schema))
+        return-gen (generator (poly/return-schema =>-schema) params)]
+    (gen/sized
+      (fn [size]
+        (gen/return
+          (fn [& args]
+            (args-validator (vec args))
+            (gen/generate return-gen size)))))))
+
+(def +simple-leaf-generators+
+  {poly/Never (gen/such-that (fn [_] (throw (ex-info "Never cannot generate values" {})))
+                             gen/any)
+   poly/AnyTrue (gen/such-that boolean gen/any)})
+
+(defn default-leaf-generators
+  [leaf-generators]
+  (some-fn
+   leaf-generators
+   (sgen/default-leaf-generators
+     +simple-leaf-generators+)))
+
+(s/defn generator
+  "Just like schema-generators.generators/generator, but also
+  generates FnSchema's. Needed because we cannot change the s/spec for FnSchema,
+  to hook into sgen/composite-generator and leaf-generators/wrappers do not
+  pass params."
+  ([schema] (generator schema {}))
+  ([schema leaf-generators] (generator schema leaf-generators {}))
+  ([schema :- sgen/Schema
+    leaf-generators :- sgen/LeafGenerators
+    wrappers :- sgen/GeneratorWrappers]
+   (let [leaf-generators (default-leaf-generators leaf-generators)
+         gen (fn [s params]
+               (or (when (instance? FnSchema s) ;;TODO make composite-generator
+                     (fn-schema-generator s params))
+                   ((or (wrappers s) identity)
+                    (or (leaf-generators s)
+                        (sgen/composite-generator (s/spec s) params)))))]
+     (gen/fmap
+       (s/validator schema) ;; do we need to convert FnSchema to GenerativeFnSchema?
+       (gen schema {:subschema-generator gen :cache #?(:clj (java.util.IdentityHashMap.)
+                                                       :cljs (atom {}))})))))
 
 (defrecord GenerativeFnSchemaSpec [fn-schema generator-args]
   spec/CoreSpec
