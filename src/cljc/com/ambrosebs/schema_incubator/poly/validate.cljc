@@ -15,9 +15,6 @@
                    [com.ambrosebs.schema_incubator.poly PolySchema]))
   #?(:cljs (:require-macros [schema.macros :as macros])))
 
-(declare check ^:private generator* ^:private to-generative-fn-schema)
-
-
 (def +simple-leaf-generators+
   {poly/Never (gen/such-that (fn [_] (throw (ex-info "Never cannot generate values" {})))
                              gen/any)
@@ -29,6 +26,8 @@
    leaf-generators
    (sgen/default-leaf-generators
      +simple-leaf-generators+)))
+
+(declare ^:private to-generative-fn-schema)
 
 (defn- generator* [schema {gen :subschema-generator :as params}]
   (let [schema (to-generative-fn-schema schema params)]
@@ -64,16 +63,16 @@
     wrappers :- sgen/GeneratorWrappers]
    (generator* schema (create-generator*-params leaf-generators wrappers))))
 
-(declare ^:private fn-schema-generator)
+(declare quick-validate ^:private fn-schema-generator)
 
 (defrecord ^:internal GenerativeFnSchemaSpec [fn-schema generator*-params]
   spec/CoreSpec
   (subschemas [this] []) ;;?
   (checker [this params]
     (fn [x]
-      (let [{:keys [passed?] :as res} (check x {:num-tests 30
-                                                :schema fn-schema
-                                                :generator*-params generator*-params})]
+      (let [{:keys [passed?] :as res} (quick-validate x {:num-tests 30
+                                                         :schema fn-schema
+                                                         :generator*-params generator*-params})]
         (if passed?
           x
           (utils/error [x])))))
@@ -165,6 +164,8 @@
          s (some-> (or (:schema opt)
                        (s/fn-schema f))
                    to-generative-fn-schema)]
+     ;; idea: these should be integrated into the `spec` of these schemas. that way,
+     ;; generative testing isn't special, but merely an option of normal validation.
      (cond
        (instance? PolySchema s)
        (qc (prop'/for-all
