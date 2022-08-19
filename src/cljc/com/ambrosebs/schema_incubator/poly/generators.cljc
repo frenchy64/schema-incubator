@@ -54,7 +54,8 @@
                    ((or (wrappers s) identity)
                     (or (leaf-generators s)
                         (sgen/composite-generator (s/spec s) params)))))]
+     (prn "schema" schema)
      (gen/fmap
-       identity ;(s/validator schema) ;; do we need to convert FnSchema to GenerativeFnSchema?
+       (s/validator schema) ;; do we need to convert FnSchema to GenerativeFnSchema?
        (gen schema {:subschema-generator gen :cache #?(:clj (java.util.IdentityHashMap.)
                                                        :cljs (atom {}))})))))

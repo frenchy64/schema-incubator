@@ -44,6 +44,12 @@
   (is (false? (:pass? (sut/check (poly/fn _not-id [a] 1)
                                  {:schema (poly/all [X] (poly/=> X X))}))))
   (is (:pass? (sut/check
+                (poly/fn :- s/Int
+                  [a :- s/Int] a))))
+  (is (false? (:pass? (sut/check
+                        (poly/fn :- s/Int
+                          [a :- s/Int] (str a))))))
+  (is (:pass? (sut/check
                 (poly/fn; :- (s/=> s/Int s/Int)
                   [a :- (s/=> s/Int s/Int)] a))))
   (is (:pass? (sut/check
