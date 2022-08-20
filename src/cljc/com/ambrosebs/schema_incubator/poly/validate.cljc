@@ -2,10 +2,10 @@
   "Schema validation using generative testing."
   (:require [clojure.test.check :refer [quick-check]]
             [clojure.test.check.generators :as gen]
+            [clojure.test.check.properties :as prop]
             [com.ambrosebs.schema-incubator.poly :as poly #?@(:cljs [:refer [PolySchema]])]
             [com.gfredericks.test.chuck.properties :as prop']
             [schema-generators.generators :as sgen]
-            [schema.spec.leaf :as leaf]
             [schema.spec.core :as spec]
             [schema.core :as s #?@(:cljs [:refer [FnSchema]])]
             #?(:clj [schema.macros :as macros])
@@ -63,19 +63,32 @@
     wrappers :- sgen/GeneratorWrappers]
    (generator* schema (create-generator*-params leaf-generators wrappers))))
 
-(declare quick-validate ^:private fn-schema-generator)
+(defn- fn-schema-generator
+  "Generator for s/=> schemas."
+  [=>-schema generator*-params]
+  (assert (instance? FnSchema =>-schema) (utils/type-of =>-schema))
+  (let [args-validator (s/validator (poly/args-schema =>-schema))
+        return-gen (generator* (poly/return-schema =>-schema) generator*-params)]
+    (gen/sized
+      (fn [size]
+        (gen/return
+          (fn [& args]
+            (args-validator (vec args))
+            (gen/generate return-gen size)))))))
+
+(declare quick-validate)
 
 (defrecord ^:internal GenerativeFnSchemaSpec [fn-schema generator*-params]
   spec/CoreSpec
   (subschemas [this] []) ;;?
   (checker [this params]
     (fn [x]
-      (let [{:keys [passed?] :as res} (quick-validate x {:num-tests 30
+      (let [{:keys [pass?] :as res} (quick-validate x {:num-tests 30
                                                          :schema fn-schema
                                                          ::generator*-params generator*-params})]
-        (if passed?
+        (if pass?
           x
-          (utils/error [x])))))
+          (utils/error x)))))
   s/HasPrecondition
   (precondition [this] ifn?)
   sgen/CompositeGenerator
@@ -90,26 +103,13 @@
 ;; same as FnSchema, except uses generative testing to validate
 (macros/defrecord-schema ^:internal GenerativeFnSchema [fn-schema generator-params]
   s/Schema
-  (spec [this] (->GenerativeFnSchemaSpec this generator-params))
+  (spec [this] (->GenerativeFnSchemaSpec fn-schema generator-params))
   (explain [this] (s/explain fn-schema))
 
   walk/WalkableSchema
   (-walk [this inner outer]
     (outer (with-meta (->GenerativeFnSchema (walk-fn-schema fn-schema inner) generator-params)
                       (meta this)))))
-
-(defn- fn-schema-generator
-  "Generator for s/=> schemas."
-  [=>-schema generator*-params]
-  {:pre [(instance? FnSchema =>-schema)]}
-  (let [args-validator (s/validator (poly/args-schema =>-schema))
-        return-gen (generator* (poly/return-schema =>-schema) generator*-params)]
-    (gen/sized
-      (fn [size]
-        (gen/return
-          (fn [& args]
-            (args-validator (vec args))
-            (gen/generate return-gen size)))))))
 
 (extend-protocol walk/WalkableSchema
   FnSchema
@@ -195,7 +195,7 @@
        (instance? GenerativeFnSchema s)
        (let [ret-s (poly/return-schema s)
              ret-checker (s/checker ret-s)]
-         (qc (prop'/for-all
+         (qc (prop/for-all
                [args (generator (poly/args-schema s))]
                (let [ret (apply f args)]
                  (if-some [reason (ret-checker ret)]
