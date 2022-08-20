@@ -199,9 +199,9 @@ every-pred
                 every-pred
                 {:schema (poly/instantiate every-pred-short-circuits-schema
                                            s/Int [s/Any s/Any s/Any] [])})))
+  #_ ;;TODO don't validate (=> Any Never) immediately following generation
   (is (:pass? (sut/quick-validate every-pred {:schema every-pred-short-circuits-schema})))
-  ;; TODO FnSchema's don't generatively test while validating.
-  #_
+  #_ ;;TODO don't validate (=> Any Never) immediately following generation
   (is (not (:pass? (sut/quick-validate (fn [& fs]
                                          (fn [& args]
                                            (doseq [f fs
@@ -254,8 +254,8 @@ every-pred
   (is (false? (:pass? (sut/quick-validate
                         every-pred
                         {:schema (poly/instantiate comp-schema [(s/eq :Y0) (s/eq :Y1)] [(s/eq :X0) (s/eq :X1) (s/eq :X2)] (s/eq :X3))}))))
-  #_ ;;very slow
+  ;;slow
   (is (:pass? (sut/quick-validate
                 comp
-                {:schema comp-schema})))
-  )
+                {:schema comp-schema
+                 :num-tests 30}))))
