@@ -217,6 +217,26 @@ every-pred
                                            (apply (apply every-pred fs) args)))
                                        {:schema every-pred-short-circuits-schema})))))
 
+(deftest nested-poly-test
+  (is (:pass? (sut/quick-validate identity {:schema (all [X] (=> X X))})))
+  (is (not (:pass? (sut/quick-validate + {:schema (all [X] (=> X X))}))))
+  (is (:pass? (sut/quick-validate (fn [] identity) {:schema (=> (all [X] (=> X X)))})))
+  #_ ;;FIXME
+  (is (not (:pass? (sut/quick-validate (fn [] +) {:schema (=> (all [X] (=> X X)))})))))
+
+;; TODO play with (=> (all [X] (=> X X))). 
+(def comp-zero-arg-schema
+  "All valid ways of calling comp and using its result."
+  (all [X] (=> (=> X X))))
+
+(deftest comp-zero-arg-schema-test
+  (is (:pass? (sut/quick-validate
+                comp
+                {:schema comp-zero-arg-schema})))
+  (is (:pass? (sut/quick-validate
+                (fn [] +)
+                {:schema comp-zero-arg-schema}))))
+
 (def comp-schema
   "All valid ways of calling comp and using its result."
   (all [X :.. Y :.. Z]
