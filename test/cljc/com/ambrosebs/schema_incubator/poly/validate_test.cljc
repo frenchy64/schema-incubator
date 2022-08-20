@@ -19,20 +19,28 @@
                   (@#'sut/generator (s/=> s/Int s/Int)))
                 :foo))))
 
-(deftest Never-gen-test
+(deftest NeverOutput-test
+  (is (s/check poly/NeverOutput 1))
   (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-                        #"Never cannot generate values"
-                        (gen/generate (@#'sut/generator poly/Never))))
+                        #"NeverOutput cannot generate values"
+                        (gen/generate (@#'sut/generator poly/NeverOutput))))
   ;; hmm
   ;  (=> Never Any) <: (=> Any Never)
   #_ ;;TODO
   (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-                        #"Value does not match schema: \[\(named \(not \(Never 1\)\) arg0\)\]"
-                        (gen/generate (@#'sut/generator (s/=> s/Any poly/Never)))))
-  #_ ;;TODO
+                        #"Value does not match schema: .*" ;;shrunk...
+                        (gen/generate (@#'sut/generator (s/=> poly/NeverOutput s/Any)))))
+  )
+
+(deftest NeverInput-test
+  (is (gen/generate (@#'sut/generator (s/=> s/Any poly/NeverInput))))
+  (is (s/validate (s/=> s/Any poly/NeverInput) identity)) ;; unsure if this is a good thing
+  (is ((gen/generate (@#'sut/generator (s/=> poly/NeverInput s/Any))) 1)) ;; undesirable use of NeverInput
+  (is (s/validate (s/=> s/Any poly/NeverInput)
+                  (gen/generate (@#'sut/generator (s/=> s/Any poly/NeverInput)))))
   (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
-                        #"Value does not match schema: \[\(named \(not \(Never 1\)\) arg0\)\]"
-                        ((gen/generate (@#'sut/generator (s/=> s/Any poly/Never))) 1))))
+                        #"Value does not match schema: \[\(named \(not \(= NeverInput.*"
+                        ((gen/generate (@#'sut/generator (s/=> s/Any poly/NeverInput))) 1))))
 
 (deftest AnyTrue-gen-test
   (is (gen/generate (@#'sut/generator poly/AnyTrue))))
@@ -165,9 +173,6 @@ every-pred
          (=> s/Any X)
          & [(=> s/Any X)]))
 
-(deftest Never-test
-  (is (s/check poly/Never false)))
-
 (def every-pred-true-schema
   "Tests that every-pred returns true if passes all preds."
   (all [X]
@@ -189,15 +194,13 @@ every-pred
                         {:schema every-pred-true-schema})))))
 
 (def every-pred-short-circuits-schema
-  "Tests that every-pred short-circuits on the first failed predicate.
-  
-  TODO: need to define how (=> s/Bool poly/Never) should validate before this works."
+  "Tests that every-pred short-circuits on the first failed predicate."
   (all [X Y :.. Z :..]
        (s/make-fn-schema 
          (=> (s/eq false) X)
          [(-> (mapv (fn [_] (s/one (=> poly/AnyTrue X) (gensym))) Y)
               (conj (s/one (=> poly/AnyFalse X) (gensym)))
-              (into (map (fn [_] (s/one (=> s/Bool poly/Never) (gensym)))) Z))])))
+              (into (map (fn [_] (s/one (=> s/Bool poly/NeverInput) (gensym)))) Z))])))
 
 (deftest every-pred-short-circuits-test
   (testing "schema expands as expected"
@@ -207,14 +210,14 @@ every-pred
     (is (= '(=> (=> (eq false) Int)
                 (=> (pred AnyTrue) Int) ;; pass
                 (=> (enum nil false) Int) ;; fail
-                (=> Bool (pred Never))) ;; short-circuit
+                (=> Bool NeverInput)) ;; short-circuit
            (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [1] [2]))))
     (is (= '(=> (=> (eq false) Int)
                 (=> (pred AnyTrue) Int) ;; pass
                 (=> (pred AnyTrue) Int) ;; pass
                 (=> (enum nil false) Int) ;; fail
-                (=> Bool (pred Never)) ;;short-circuit
-                (=> Bool (pred Never))) ;;short-circuit
+                (=> Bool NeverInput) ;;short-circuit
+                (=> Bool NeverInput)) ;;short-circuit
            (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [1 1] [2 2])))))
   (is (:pass? (sut/quick-validate
                 every-pred
@@ -228,16 +231,15 @@ every-pred
                 every-pred
                 {:schema (poly/instantiate every-pred-short-circuits-schema
                                            s/Int [s/Any s/Any s/Any] [])})))
-  #_ ;;TODO don't validate (=> Any Never) immediately following generation
-  (is (:pass? (sut/quick-validate every-pred {:schema every-pred-short-circuits-schema})))
-  #_ ;;TODO don't validate (=> Any Never) immediately following generation
-  (is (not (:pass? (sut/quick-validate (fn [& fs]
-                                         (fn [& args]
-                                           (doseq [f fs
-                                                   arg args]
-                                             (f arg))
-                                           (apply (apply every-pred fs) args)))
-                                       {:schema every-pred-short-circuits-schema})))))
+  (is (:pass? (sut/quick-validate every-pred {:schema every-pred-short-circuits-schema
+                                              :num-tests 30})))
+  (is (false? (:pass? (sut/quick-validate (fn [& fs]
+                                            (fn [& args]
+                                              (doseq [f fs
+                                                      arg args]
+                                                (f arg))
+                                              (apply (apply every-pred fs) args)))
+                                          {:schema every-pred-short-circuits-schema})))))
 
 (deftest nested-poly-test
   (is (:pass? (sut/quick-validate identity {:schema (all [X] (=> X X))})))

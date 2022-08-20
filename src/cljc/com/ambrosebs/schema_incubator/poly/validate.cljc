@@ -16,8 +16,9 @@
   #?(:cljs (:require-macros [schema.macros :as macros])))
 
 (def +simple-leaf-generators+
-  {poly/Never (gen/such-that (fn [_] (throw (ex-info "Never cannot generate values" {})))
-                             gen/any)
+  {poly/NeverOutput (gen/such-that (fn [_] (throw (ex-info "NeverOutput cannot generate values" {})))
+                                   gen/any)
+   poly/NeverInput (gen/return poly/NeverInput)
    poly/AnyTrue (gen/such-that boolean gen/any)})
 
 (defn- default-leaf-generators
@@ -63,6 +64,7 @@
     wrappers :- sgen/GeneratorWrappers]
    (generator* schema (create-generator*-params leaf-generators wrappers))))
 
+;; checks input, generates output (opposite of quick-validate)
 (defn- fn-schema-generator
   "Generator for s/=> schemas."
   [=>-schema generator*-params]
@@ -81,15 +83,13 @@
 (defrecord ^:internal GenerativeFnSchemaSpec [fn-schema generator*-params]
   spec/CoreSpec
   (subschemas [this] []) ;;?
-  (checker [this params]
+  (checker [this params];;hmm do we propagate checker params via generator->checker->generator->checker...?
     (fn [x]
       (let [{:keys [pass?] :as res} (quick-validate x {:num-tests 30
                                                        :schema fn-schema
                                                        ::generator*-params generator*-params})]
-        (if pass?
-          x
-          ;;TODO if x is nil/false this doesn't work..wrapping in []
-          (utils/error [x])))))
+        (when-not pass?
+          (utils/error res)))))
   s/HasPrecondition
   (precondition [this] ifn?)
   sgen/CompositeGenerator
@@ -135,6 +135,7 @@
                        s)))
                  s))
 
+;; generates input, checks output (opposite of fn-schema-generator)
 (defn quick-validate
   "Validate a value against a schema via generative testing.
 

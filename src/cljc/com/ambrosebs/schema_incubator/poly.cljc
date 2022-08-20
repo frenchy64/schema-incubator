@@ -9,6 +9,8 @@
    [schema.core :as s #?@(:cljs [:refer [FnSchema One]])]
    #?(:clj [schema.macros :refer [assert! compile-fn-validation? defrecord-schema if-bb if-cljs]])
    #?(:clj [com.ambrosebs.schema-incubator.poly.macros :as macros])
+   [schema.spec.core :as spec]
+   [schema.spec.leaf :as leaf]
    [schema.utils :as utils])
   #?(:clj (:import [schema.core FnSchema One]))
   #?(:cljs (:require-macros [com.ambrosebs.schema-incubator.poly.macros :as macros]
@@ -17,9 +19,17 @@
 
 #?(:clj (set! *warn-on-reflection* true))
 
-(defonce Never (s/pred (cc/fn [_] false) 'Never))
-(defonce AnyTrue (s/pred boolean 'AnyTrue))
-(defonce AnyFalse (s/enum nil false))
+(def ^{:doc "A schema that cannot validate or generate values."}
+  NeverOutput
+  (s/pred #{} 'NeverOutput))
+(defonce ^{:doc "A schema that can only validate values created by its own generator."}
+  NeverInput
+  (reify Object
+    s/Schema
+    (spec [this] (leaf/leaf-spec (spec/precondition this #{this} #(list 'NeverInput %))))
+    (explain [this] 'NeverInput)))
+(def AnyTrue (s/pred boolean 'AnyTrue))
+(def AnyFalse (s/enum nil false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Polymorphic Schemas
