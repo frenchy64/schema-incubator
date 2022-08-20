@@ -265,4 +265,12 @@ every-pred
   (is (:pass? (sut/quick-validate
                 comp
                 {:schema comp-schema
-                 :num-tests 30}))))
+                 :num-tests 30})))
+  (is (false? (:pass? (sut/quick-validate
+                        every-pred
+                        {:schema comp-schema
+                         :num-tests 30}))))
+  (is (false? (:pass? (sut/quick-validate
+                        (fn _reversed-comp [& args]
+                          (apply comp (reverse args)))
+                        {:schema comp-schema})))))
