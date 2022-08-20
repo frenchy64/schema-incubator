@@ -166,6 +166,26 @@ every-pred
 (deftest Never-test
   (is (s/check poly/Never false)))
 
+(def every-pred-true-schema
+  "Tests that every-pred returns true if passes all preds."
+  (all [X]
+       (=> (=> (s/eq true) & [X])
+           (=> poly/AnyTrue X)
+           & [(=> poly/AnyTrue X)])))
+
+(deftest every-pred-true-schema-test
+  (is (:pass? (sut/quick-validate
+                every-pred
+                {:schema (poly/instantiate every-pred-true-schema s/Int)
+                 :num-tests 20})))
+  (is (:pass? (sut/quick-validate
+                every-pred
+                {:schema every-pred-true-schema
+                 :num-tests 20})))
+  (is (false? (:pass? (sut/quick-validate
+                        (complement every-pred)
+                        {:schema every-pred-true-schema})))))
+
 (def every-pred-short-circuits-schema
   "Tests that every-pred short-circuits on the first failed predicate.
   

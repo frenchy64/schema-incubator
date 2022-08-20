@@ -88,7 +88,8 @@
                                                        ::generator*-params generator*-params})]
         (if pass?
           x
-          (utils/error x)))))
+          ;;TODO if x is nil/false this doesn't work..wrapping in []
+          (utils/error [x])))))
   s/HasPrecondition
   (precondition [this] ifn?)
   sgen/CompositeGenerator
