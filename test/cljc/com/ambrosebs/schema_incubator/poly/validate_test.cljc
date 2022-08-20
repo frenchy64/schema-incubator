@@ -186,7 +186,14 @@ every-pred
                 (=> (pred AnyTrue) Int) ;; pass
                 (=> (enum nil false) Int) ;; fail
                 (=> Bool (pred Never))) ;; short-circuit
-           (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [1] [2])))))
+           (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [1] [2]))))
+    (is (= '(=> (=> (eq false) Int)
+                (=> (pred AnyTrue) Int) ;; pass
+                (=> (pred AnyTrue) Int) ;; pass
+                (=> (enum nil false) Int) ;; fail
+                (=> Bool (pred Never)) ;;short-circuit
+                (=> Bool (pred Never))) ;;short-circuit
+           (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [1 1] [2 2])))))
   (is (:pass? (sut/quick-validate
                 every-pred
                 {:schema (poly/instantiate every-pred-short-circuits-schema
