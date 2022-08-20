@@ -193,8 +193,8 @@ every-pred
                         (complement every-pred)
                         {:schema every-pred-true-schema})))))
 
-(def every-pred-short-circuits-schema
-  "Tests that every-pred short-circuits on the first failed predicate."
+(def every-pred-short-one-arg-schema
+  "Tests that every-pred short-circuits on the first failed predicate when passed one arg."
   (all [X Y :.. Z :..]
        (s/make-fn-schema 
          (=> (s/eq false) X)
@@ -202,44 +202,69 @@ every-pred
               (conj (s/one (=> poly/AnyFalse X) (gensym)))
               (into (map (fn [_] (s/one (=> s/Bool poly/NeverInput) (gensym)))) Z))])))
 
-(deftest every-pred-short-circuits-test
+#_ ;;TODO imaginary syntax for above
+(all [X Y :.. Z :..]
+     (=> (=> (s/eq false) X)
+         (=> poly/AnyTrue X) :.. Y
+         (=> poly/AnyFalse X)
+         (=> s/Bool poly/NeverInput) :.. Z))
+
+(deftest every-pred-short-one-arg-test
   (testing "schema expands as expected"
     (is (= '(=> (=> (eq false) Int)
                 (=> (enum nil false) Int))
-           (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [] []))))
+           (s/explain (poly/instantiate every-pred-short-one-arg-schema s/Int [] []))))
     (is (= '(=> (=> (eq false) Int)
                 (=> (pred AnyTrue) Int) ;; pass
                 (=> (enum nil false) Int) ;; fail
                 (=> Bool NeverInput)) ;; short-circuit
-           (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [1] [2]))))
+           (s/explain (poly/instantiate every-pred-short-one-arg-schema s/Int [1] [2]))))
     (is (= '(=> (=> (eq false) Int)
                 (=> (pred AnyTrue) Int) ;; pass
                 (=> (pred AnyTrue) Int) ;; pass
                 (=> (enum nil false) Int) ;; fail
                 (=> Bool NeverInput) ;;short-circuit
                 (=> Bool NeverInput)) ;;short-circuit
-           (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [1 1] [2 2])))))
+           (s/explain (poly/instantiate every-pred-short-one-arg-schema s/Int [1 1] [2 2])))))
   (is (:pass? (sut/quick-validate
                 every-pred
-                {:schema (poly/instantiate every-pred-short-circuits-schema
+                {:schema (poly/instantiate every-pred-short-one-arg-schema
                                            s/Int [] [])})))
   (is (:pass? (sut/quick-validate
                 every-pred
-                {:schema (poly/instantiate every-pred-short-circuits-schema
+                {:schema (poly/instantiate every-pred-short-one-arg-schema
                                            s/Int [s/Any] [])})))
   (is (:pass? (sut/quick-validate
                 every-pred
-                {:schema (poly/instantiate every-pred-short-circuits-schema
+                {:schema (poly/instantiate every-pred-short-one-arg-schema
                                            s/Int [s/Any s/Any s/Any] [])})))
-  (is (:pass? (sut/quick-validate every-pred {:schema every-pred-short-circuits-schema
+  (is (:pass? (sut/quick-validate every-pred {:schema every-pred-short-one-arg-schema
                                               :num-tests 30})))
-  (is (false? (:pass? (sut/quick-validate (fn [& fs]
-                                            (fn [& args]
-                                              (doseq [f fs
-                                                      arg args]
-                                                (f arg))
-                                              (apply (apply every-pred fs) args)))
-                                          {:schema every-pred-short-circuits-schema})))))
+  ;; TODO push in the "not" to show problem
+  #_(=> (=> (s/eq false) (s/eq X))
+        (=> AnyFalse (s/eq X))
+        (=> Bool (not (NeverInput X))))
+  (is (= '(not (=> (=> (eq false) (eq X))
+                   (=> (enum nil false) (eq X))
+                   (=> Bool NeverInput)))
+         (sut/check (fn [& fs]
+                      (fn [& args]
+                        (doseq [f fs
+                                arg args]
+                          (f arg))
+                        (apply (apply every-pred fs) args)))
+                    {:schema every-pred-short-one-arg-schema}))))
+
+(def every-pred-short-one-arg-schema
+  "Tests that every-pred short-circuits on the first failed predicate when passed one arg."
+  (all [GOOD_ARGS :.. BAD0 BAD_ARGS :.. BEFORE_FAIL_PREDS :.. AFTER_FAIL_PREDS :..]
+       (let [BAD_ARGS (conj BAD_ARGS BAD0)]
+         (s/make-fn-schema 
+           (=> (s/eq false) GOOD_ARGS :.. GOOD_ARGS)
+           [(-> (mapv (fn [_] (s/one (=> poly/AnyTrue X) (gensym))) BEFORE_FAIL_PREDS)
+                (conj (s/one (=> poly/AnyFalse X) (gensym)))
+                (into (map (fn [_] (s/one (=> s/Bool (apply s/cond-pre (concat GOOD_ARGS BAD_ARGS))) (gensym))))
+                      AFTER_FAIL_PREDS))]))))
 
 (deftest nested-poly-test
   (is (:pass? (sut/quick-validate identity {:schema (all [X] (=> X X))})))

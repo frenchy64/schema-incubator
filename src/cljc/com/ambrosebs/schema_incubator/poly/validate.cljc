@@ -178,7 +178,8 @@
              [insts (apply gen/tuple
                            (map (fn [[a {:keys [kind]}]]
                                   (case kind
-                                    :schema (gen/one-of [(gen/return (s/eq (gensym a)))
+                                    :schema (gen/one-of [(gen/return (s/eq a)) ;; shrink to readable value
+                                                         (gen/return (s/eq (gensym a)))
                                                          (gen/return s/Any)])
                                     :.. (gen/one-of [(gen/vector (gen/return s/Any))
                                                      (gen/vector (gen/return s/Any))])))
@@ -208,6 +209,14 @@
        ;:else (s/validate s f)  ; kind of makes sense, except we need to figure out how to a return quick-check style summary.
        :else (throw (ex-info (str "Invalid schema to exercise: " (pr-str s))
                              {}))))))
+
+(defn check [& args]
+  (let [{:keys [pass?] :as result} (apply quick-validate args)]
+    (when-not pass?
+      (let [smallest (-> result :shrunk :smallest first)]
+        (if ('insts smallest) ;; poly case
+          (list 'not (s/explain ('s smallest)))
+          'FIXME)))))
 
 (comment
   ; :fail [[()]],
