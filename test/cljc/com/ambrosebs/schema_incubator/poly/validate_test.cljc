@@ -23,6 +23,11 @@
   (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
                         #"Never cannot generate values"
                         (gen/generate (@#'sut/generator poly/Never))))
+  ;; hmm
+  ;  (=> Never Any) <: (=> Any Never)
+  (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
+                        #"Value does not match schema: \[\(named \(not \(Never 1\)\) arg0\)\]"
+                        (gen/generate (@#'sut/generator (s/=> s/Any poly/Never)))))
   (is (thrown-with-msg? #?(:clj Exception :cljs js/Error)
                         #"Value does not match schema: \[\(named \(not \(Never 1\)\) arg0\)\]"
                         ((gen/generate (@#'sut/generator (s/=> s/Any poly/Never))) 1))))
@@ -78,22 +83,22 @@
                  (select-keys #{:type :schema :value})))))))
 
 (deftest poly-validate-test
-  (is (:pass? (sut/quick-validate (poly/fn :all [X] _id :- X [a :- X] a))))
+  (is (true? (:pass? (sut/quick-validate (poly/fn :all [X] _id :- X [a :- X] a)))))
   (is (false? (:pass? (sut/quick-validate (poly/fn :all [X] _not-id :- X [a :- X] 1)))))
   (is (false? (:pass? (sut/quick-validate (poly/fn _not-id [a] 1)
                                  {:schema (poly/all [X] (poly/=> X X))}))))
-  (is (:pass? (sut/quick-validate
-                (poly/fn :- s/Int
-                  [a :- s/Int] a))))
+  (is (true? (:pass? (sut/quick-validate
+                       (poly/fn :- s/Int
+                         [a :- s/Int] a)))))
   (is (false? (:pass? (sut/quick-validate
                         (poly/fn :- s/Int
                           [a :- s/Int] (str a))))))
-  (is (:pass? (sut/quick-validate
-                (poly/fn; :- (s/=> s/Int s/Int)
-                  [a :- (s/=> s/Int s/Int)] a))))
-  (is (:pass? (sut/quick-validate
-                (poly/fn :- (poly/=> s/Int s/Int)
-                  [a :- (poly/=> s/Int s/Int)] a))))
+  (is (true? (:pass? (sut/quick-validate
+                       (poly/fn; :- (s/=> s/Int s/Int)
+                         [a :- (s/=> s/Int s/Int)] a)))))
+  (is (true? (:pass? (sut/quick-validate
+                       (poly/fn :- (poly/=> s/Int s/Int)
+                         [a :- (poly/=> s/Int s/Int)] a)))))
   #_ ;;TODO
   (sut/quick-validate
     (poly/fn :all [X :..] :- (poly/=> X X :.. X)
@@ -156,15 +161,10 @@ every-pred
 (all [X :.. Y]
      (=> (=> s/Bool & [X])
          (=> s/Any X)
-         & [(=> s/Any X)]
-         ))
-#_
-(all [X Y :.. Z :..]
-     (s/make-fn-schema 
-       (=> (s/eq false) X)
-       [(->> (mapv #(s/one (=> poly/AnyTrue %) (gensym)) Y)
-             (conj (s/one (=> poly/AnyFalse X) (gensym)))
-             (into (mapv (fn [_] (s/one (=> s/Bool poly/Never) (gensym))) Z)))]))
+         & [(=> s/Any X)]))
+
+(deftest Never-test
+  (is (s/check poly/Never false)))
 
 (def every-pred-short-circuits-schema
   (all [X Y :.. Z :..]
@@ -172,16 +172,25 @@ every-pred
          (=> (s/eq false) X)
          [(-> (mapv (fn [_] (s/one (=> poly/AnyTrue X) (gensym))) Y)
               (conj (s/one (=> poly/AnyFalse X) (gensym)))
-              (into (mapv (fn [_] (s/one (=> s/Bool poly/Never) (gensym))) Z)))])))
-
-(deftest Never-test
-  (is (s/validate poly/Never false)))
+              (into (map (fn [_] (s/one (=> s/Bool poly/Never) (gensym)))) Z))])))
 
 (deftest every-pred-short-circuits-test
   (is (= '(=> (=> (eq false) Int) (=> (enum nil false) Int))
          (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [] []))))
   (is (= '(=> (=> (eq false) Int) (=> (pred AnyTrue) Int) (=> (enum nil false) Int) (=> Bool (pred Never)))
          (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [1] [2]))))
+  (is (:pass? (sut/quick-validate
+                every-pred
+                {:schema (poly/instantiate every-pred-short-circuits-schema
+                                           s/Int [] [])})))
+  (is (:pass? (sut/quick-validate
+                every-pred
+                {:schema (poly/instantiate every-pred-short-circuits-schema
+                                           s/Int [s/Any] [])})))
+  (is (:pass? (sut/quick-validate
+                every-pred
+                {:schema (poly/instantiate every-pred-short-circuits-schema
+                                           s/Int [s/Any s/Any s/Any] [])})))
   (is (:pass? (sut/quick-validate every-pred {:schema every-pred-short-circuits-schema})))
   ;; TODO FnSchema's don't generatively test while validating.
   #_
@@ -192,3 +201,51 @@ every-pred
                                              (f arg))
                                            (apply (apply every-pred fs) args)))
                                        {:schema every-pred-short-circuits-schema})))))
+
+(def comp-schema
+  (all [X :.. Y :.. Z]
+       (let [Y (conj Y Z)]
+         (s/make-fn-schema
+           (=> (first Y) X :.. X)
+           [(-> (mapv (fn [[ret arg]] (s/one (=> ret arg) (gensym)))
+                      (partition 2 1 Y))
+                (conj (s/one (=> (peek Y) X :.. X) (gensym))))]))))
+
+(deftest comp-schema-test
+  (is (= '(=> (=> (eq :X))
+              (=> (eq :X)))
+         (s/explain (poly/instantiate comp-schema [] [] (s/eq :X)))))
+  (is (= '(=> (=> (eq :X) (eq :Y0))
+              (=> (eq :X) (eq :Y0)))
+         (s/explain (poly/instantiate comp-schema [(s/eq :Y0)] [] (s/eq :X)))))
+  (is (= '(=> (=> (eq :X) (eq :Y0) (eq :Y1))
+              (=> (eq :X) (eq :Y0) (eq :Y1)))
+         (s/explain (poly/instantiate comp-schema [(s/eq :Y0) (s/eq :Y1)] [] (s/eq :X)))))
+  (is (= '(=> (=> (eq :Z))
+              (=> (eq :Z) (eq :X))
+              (=> (eq :X)))
+         (s/explain (poly/instantiate comp-schema [] [(s/eq :Z)] (s/eq :X)))))
+  (is (= '(=> (=> (eq :Z) (eq :Y0) (eq :Y1))
+              (=> (eq :Z) (eq :X))
+              (=> (eq :X) (eq :Y0) (eq :Y1)))
+         (s/explain (poly/instantiate comp-schema [(s/eq :Y0) (s/eq :Y1)] [(s/eq :Z)] (s/eq :X)))))
+  (is (= '(=> (=> (eq :X0) (eq :Y0) (eq :Y1))
+              (=> (eq :X0) (eq :X1))
+              (=> (eq :X1) (eq :X2))
+              (=> (eq :X2) (eq :X3))
+              (=> (eq :X3) (eq :Y0) (eq :Y1)))
+         (s/explain (poly/instantiate comp-schema [(s/eq :Y0) (s/eq :Y1)] [(s/eq :X0) (s/eq :X1) (s/eq :X2)] (s/eq :X3)))))
+  (is (:pass? (sut/quick-validate
+                comp
+                {:schema (poly/instantiate comp-schema [] [] [(s/eq :X)])})))
+  (is (:pass? (sut/quick-validate
+                comp
+                {:schema (poly/instantiate comp-schema [(s/eq :Y0) (s/eq :Y1)] [(s/eq :X0) (s/eq :X1) (s/eq :X2)] (s/eq :X3))})))
+  (is (false? (:pass? (sut/quick-validate
+                        every-pred
+                        {:schema (poly/instantiate comp-schema [(s/eq :Y0) (s/eq :Y1)] [(s/eq :X0) (s/eq :X1) (s/eq :X2)] (s/eq :X3))}))))
+  #_ ;;very slow
+  (is (:pass? (sut/quick-validate
+                comp
+                {:schema comp-schema})))
+  )

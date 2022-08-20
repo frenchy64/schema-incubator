@@ -84,8 +84,8 @@
   (checker [this params]
     (fn [x]
       (let [{:keys [pass?] :as res} (quick-validate x {:num-tests 30
-                                                         :schema fn-schema
-                                                         ::generator*-params generator*-params})]
+                                                       :schema fn-schema
+                                                       ::generator*-params generator*-params})]
         (if pass?
           x
           (utils/error x)))))
@@ -195,7 +195,7 @@
        (instance? GenerativeFnSchema s)
        (let [ret-s (poly/return-schema s)
              ret-checker (s/checker ret-s)]
-         (qc (prop/for-all
+         (qc (prop'/for-all
                [args (generator (poly/args-schema s))]
                (let [ret (apply f args)]
                  (if-some [reason (ret-checker ret)]
