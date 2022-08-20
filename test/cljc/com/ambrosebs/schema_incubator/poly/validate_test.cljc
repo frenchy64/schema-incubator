@@ -167,6 +167,9 @@ every-pred
   (is (s/check poly/Never false)))
 
 (def every-pred-short-circuits-schema
+  "Tests that every-pred short-circuits on the first failed predicate.
+  
+  TODO: need to define how (=> s/Bool poly/Never) should validate before this works."
   (all [X Y :.. Z :..]
        (s/make-fn-schema 
          (=> (s/eq false) X)
@@ -175,10 +178,15 @@ every-pred
               (into (map (fn [_] (s/one (=> s/Bool poly/Never) (gensym)))) Z))])))
 
 (deftest every-pred-short-circuits-test
-  (is (= '(=> (=> (eq false) Int) (=> (enum nil false) Int))
-         (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [] []))))
-  (is (= '(=> (=> (eq false) Int) (=> (pred AnyTrue) Int) (=> (enum nil false) Int) (=> Bool (pred Never)))
-         (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [1] [2]))))
+  (testing "schema expands as expected"
+    (is (= '(=> (=> (eq false) Int)
+                (=> (enum nil false) Int))
+           (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [] []))))
+    (is (= '(=> (=> (eq false) Int)
+                (=> (pred AnyTrue) Int) ;; pass
+                (=> (enum nil false) Int) ;; fail
+                (=> Bool (pred Never))) ;; short-circuit
+           (s/explain (poly/instantiate every-pred-short-circuits-schema s/Int [1] [2])))))
   (is (:pass? (sut/quick-validate
                 every-pred
                 {:schema (poly/instantiate every-pred-short-circuits-schema
@@ -203,6 +211,7 @@ every-pred
                                        {:schema every-pred-short-circuits-schema})))))
 
 (def comp-schema
+  "All valid ways of calling comp and using its result."
   (all [X :.. Y :.. Z]
        (let [Y (conj Y Z)]
          (s/make-fn-schema
@@ -212,32 +221,33 @@ every-pred
                 (conj (s/one (=> (peek Y) X :.. X) (gensym))))]))))
 
 (deftest comp-schema-test
-  (is (= '(=> (=> (eq :X))
-              (=> (eq :X)))
-         (s/explain (poly/instantiate comp-schema [] [] (s/eq :X)))))
-  (is (= '(=> (=> (eq :X) (eq :Y0))
-              (=> (eq :X) (eq :Y0)))
-         (s/explain (poly/instantiate comp-schema [(s/eq :Y0)] [] (s/eq :X)))))
-  (is (= '(=> (=> (eq :X) (eq :Y0) (eq :Y1))
-              (=> (eq :X) (eq :Y0) (eq :Y1)))
-         (s/explain (poly/instantiate comp-schema [(s/eq :Y0) (s/eq :Y1)] [] (s/eq :X)))))
-  (is (= '(=> (=> (eq :Z))
-              (=> (eq :Z) (eq :X))
-              (=> (eq :X)))
-         (s/explain (poly/instantiate comp-schema [] [(s/eq :Z)] (s/eq :X)))))
-  (is (= '(=> (=> (eq :Z) (eq :Y0) (eq :Y1))
-              (=> (eq :Z) (eq :X))
-              (=> (eq :X) (eq :Y0) (eq :Y1)))
-         (s/explain (poly/instantiate comp-schema [(s/eq :Y0) (s/eq :Y1)] [(s/eq :Z)] (s/eq :X)))))
-  (is (= '(=> (=> (eq :X0) (eq :Y0) (eq :Y1))
-              (=> (eq :X0) (eq :X1))
-              (=> (eq :X1) (eq :X2))
-              (=> (eq :X2) (eq :X3))
-              (=> (eq :X3) (eq :Y0) (eq :Y1)))
-         (s/explain (poly/instantiate comp-schema [(s/eq :Y0) (s/eq :Y1)] [(s/eq :X0) (s/eq :X1) (s/eq :X2)] (s/eq :X3)))))
-  (is (:pass? (sut/quick-validate
-                comp
-                {:schema (poly/instantiate comp-schema [] [] [(s/eq :X)])})))
+  (testing "schema expands as expected"
+    (is (= '(=> (=> (eq :X))
+                (=> (eq :X)))
+           (s/explain (poly/instantiate comp-schema [] [] (s/eq :X)))))
+    (is (= '(=> (=> (eq :X) (eq :Y0))
+                (=> (eq :X) (eq :Y0)))
+           (s/explain (poly/instantiate comp-schema [(s/eq :Y0)] [] (s/eq :X)))))
+    (is (= '(=> (=> (eq :X) (eq :Y0) (eq :Y1))
+                (=> (eq :X) (eq :Y0) (eq :Y1)))
+           (s/explain (poly/instantiate comp-schema [(s/eq :Y0) (s/eq :Y1)] [] (s/eq :X)))))
+    (is (= '(=> (=> (eq :Z))
+                (=> (eq :Z) (eq :X))
+                (=> (eq :X)))
+           (s/explain (poly/instantiate comp-schema [] [(s/eq :Z)] (s/eq :X)))))
+    (is (= '(=> (=> (eq :Z) (eq :Y0) (eq :Y1))
+                (=> (eq :Z) (eq :X))
+                (=> (eq :X) (eq :Y0) (eq :Y1)))
+           (s/explain (poly/instantiate comp-schema [(s/eq :Y0) (s/eq :Y1)] [(s/eq :Z)] (s/eq :X)))))
+    (is (= '(=> (=> (eq :X0) (eq :Y0) (eq :Y1))
+                (=> (eq :X0) (eq :X1))
+                (=> (eq :X1) (eq :X2))
+                (=> (eq :X2) (eq :X3))
+                (=> (eq :X3) (eq :Y0) (eq :Y1)))
+           (s/explain (poly/instantiate comp-schema [(s/eq :Y0) (s/eq :Y1)] [(s/eq :X0) (s/eq :X1) (s/eq :X2)] (s/eq :X3)))))
+    (is (:pass? (sut/quick-validate
+                  comp
+                  {:schema (poly/instantiate comp-schema [] [] [(s/eq :X)])}))))
   (is (:pass? (sut/quick-validate
                 comp
                 {:schema (poly/instantiate comp-schema [(s/eq :Y0) (s/eq :Y1)] [(s/eq :X0) (s/eq :X1) (s/eq :X2)] (s/eq :X3))})))
