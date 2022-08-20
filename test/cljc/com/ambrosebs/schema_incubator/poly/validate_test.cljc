@@ -251,10 +251,10 @@ every-pred
                 (=> (eq :X1) (eq :X2))
                 (=> (eq :X2) (eq :X3))
                 (=> (eq :X3) (eq :Y0) (eq :Y1)))
-           (s/explain (poly/instantiate comp-schema [(s/eq :Y0) (s/eq :Y1)] [(s/eq :X0) (s/eq :X1) (s/eq :X2)] (s/eq :X3)))))
-    (is (:pass? (sut/quick-validate
-                  comp
-                  {:schema (poly/instantiate comp-schema [] [] [(s/eq :X)])}))))
+           (s/explain (poly/instantiate comp-schema [(s/eq :Y0) (s/eq :Y1)] [(s/eq :X0) (s/eq :X1) (s/eq :X2)] (s/eq :X3))))))
+  (is (:pass? (sut/quick-validate
+                comp
+                {:schema (poly/instantiate comp-schema [] [] [(s/eq :X)])})))
   (is (:pass? (sut/quick-validate
                 comp
                 {:schema (poly/instantiate comp-schema [(s/eq :Y0) (s/eq :Y1)] [(s/eq :X0) (s/eq :X1) (s/eq :X2)] (s/eq :X3))})))
