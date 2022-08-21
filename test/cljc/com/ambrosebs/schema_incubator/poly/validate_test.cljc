@@ -94,21 +94,39 @@
 
 (deftest poly-validate-test
   (is (true? (:pass? (sut/quick-validate (poly/fn :all [X] _id :- X [a :- X] a)))))
+  ; (=> (not (= X 1)) (eq X))
   (is (false? (:pass? (sut/quick-validate (poly/fn :all [X] _not-id :- X [a :- X] 1)))))
+  ; (=> (not (= X 1)) (eq X))
   (is (false? (:pass? (sut/quick-validate (poly/fn _not-id [a] 1)
-                                 {:schema (poly/all [X] (poly/=> X X))}))))
+                                          {:schema (poly/all [X] (poly/=> X X))}))))
   (is (true? (:pass? (sut/quick-validate
                        (poly/fn :- s/Int
                          [a :- s/Int] a)))))
+  ;; (=> (not (Int "0")) Int)
   (is (false? (:pass? (sut/quick-validate
                         (poly/fn :- s/Int
                           [a :- s/Int] (str a))))))
-  (is (true? (:pass? (sut/quick-validate
-                       (poly/fn; :- (s/=> s/Int s/Int)
-                         [a :- (s/=> s/Int s/Int)] a)))))
-  (is (true? (:pass? (sut/quick-validate
-                       (poly/fn :- (poly/=> s/Int s/Int)
-                         [a :- (poly/=> s/Int s/Int)] a)))))
+  (is (= '(=> (not (integer? "0"))
+              (integer? 0))
+         (sut/check
+           (poly/fn :- s/Int
+             [a :- s/Int] (str a)))))
+  (is (nil? (sut/check
+              (poly/fn; :- (s/=> s/Int s/Int)
+                [a :- (s/=> s/Int s/Int)] a))))
+  (is (nil? (sut/check
+              (poly/fn :- (poly/=> s/Int s/Int)
+                [a :- (poly/=> s/Int s/Int)] a))))
+  (is (= '(=> (=> (not (integer? false)) Int)
+              (=> Bool Int))
+         (sut/check
+           (poly/fn :- (poly/=> s/Int s/Int)
+             [a :- (poly/=> s/Bool s/Int)] a))))
+  (is (= '(=> (=> (not (boolean? 0)) (integer? 0))
+              (=> Int Int))
+         (sut/check
+           (poly/fn :- (poly/=> s/Bool s/Int)
+             [a :- (poly/=> s/Int s/Int)] a))))
   #_ ;;TODO
   (sut/quick-validate
     (poly/fn :all [X :..] :- (poly/=> X X :.. X)
@@ -255,7 +273,9 @@ every-pred
                         (apply (apply every-pred fs) args)))
                     {:schema every-pred-short-one-arg-schema}))))
 
-(def every-pred-short-one-arg-schema
+#_ ;;TODO every-pred schema for multiple args. needs fn intersections to generate
+   ;; prediate that only passes some schemas.
+(def every-pred-short-nargs-schema
   "Tests that every-pred short-circuits on the first failed predicate when passed one arg."
   (all [GOOD_ARGS :.. BAD0 BAD_ARGS :.. BEFORE_FAIL_PREDS :.. AFTER_FAIL_PREDS :..]
        (let [BAD_ARGS (conj BAD_ARGS BAD0)]
@@ -269,6 +289,9 @@ every-pred
 (deftest nested-poly-test
   (is (:pass? (sut/quick-validate identity {:schema (all [X] (=> X X))})))
   (is (not (:pass? (sut/quick-validate + {:schema (all [X] (=> X X))}))))
+  ;; TODO (not (=> (eq X) (throws? (eq X))))
+  (is (= '(not (=> (eq X) (eq X)))
+         (sut/check + {:schema (all [X] (=> X X))})))
   (is (:pass? (sut/quick-validate (fn [] identity) {:schema (=> (all [X] (=> X X)))})))
   #_ ;;FIXME
   (is (not (:pass? (sut/quick-validate (fn [] +) {:schema (=> (all [X] (=> X X)))})))))

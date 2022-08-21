@@ -39,7 +39,8 @@
 (defrecord-schema PolySchema [decl parsed-decl schema-form inst->schema most-general]
   s/Schema
   (spec [this] (s/spec @most-general))
-  (explain [this] (list 'all decl schema-form))
+  (explain [this] (with-meta (list 'all decl schema-form)
+                             {:com.ambrosebs.schema-incubator.poly/explain-schema this}))
   s/HasPrecondition
   (precondition [this] (s/precondition @most-general)))
 
