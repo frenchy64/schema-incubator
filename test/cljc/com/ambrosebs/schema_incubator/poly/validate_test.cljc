@@ -289,7 +289,7 @@ every-pred
 (deftest nested-poly-test
   (is (:pass? (sut/quick-validate identity {:schema (all [X] (=> X X))})))
   (is (not (:pass? (sut/quick-validate + {:schema (all [X] (=> X X))}))))
-  ;; TODO (not (=> (eq X) (throws? (eq X))))
+  ;; TODO (not (=> (throws? (eq X)) (eq X)))
   (is (= '(not (=> (eq X) (eq X)))
          (sut/check + {:schema (all [X] (=> X X))})))
   (is (:pass? (sut/quick-validate (fn [] identity) {:schema (=> (all [X] (=> X X)))})))
